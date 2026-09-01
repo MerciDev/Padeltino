@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import Button from './Button';
+import { getLocalDateString } from '../utils/date';
 
 const MonthCalendar = ({ value, onChange, highlights = {}, onMonthChange }) => {
   // value is expected to be 'YYYY-MM-DD'
@@ -57,7 +59,7 @@ const MonthCalendar = ({ value, onChange, highlights = {}, onMonthChange }) => {
     onChange(`${currentYear}-${mm}-${dd}`);
   };
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateString();
 
   const renderDays = () => {
     const days = [];

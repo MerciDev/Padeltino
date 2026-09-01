@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import { getUserReservations, getAllReservations, getCommunities, updateUserPassword } from '../store/api';
+import { getLocalDateString } from '../utils/date';
 const formatDate = (isoStr) => {
   if (!isoStr) return '';
   const [y, m, d] = isoStr.split('-');
@@ -57,7 +58,7 @@ const Dashboard = ({ user }) => {
     fetchData();
   }, [user.id, user.isAdmin]);
   
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateString();
   const upcoming = userReservations.filter(r => r.date >= today);
   
   const userCommunity = communities.find(c => c.id === user.communityId) || communities[0];

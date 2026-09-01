@@ -5,13 +5,14 @@ import Input from '../components/Input';
 import { getCommunities, getReservationsByDate, removeReservation, updateReservation, updateCommunityInfo, addCourt, getReservationsByMonthRange } from '../store/api';
 import UrbanizationModel from '../components/UrbanizationModel';
 import MonthCalendar from '../components/MonthCalendar';
+import { getLocalDateString } from '../utils/date';
 
 const AdminCommunity = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [refresh, setRefresh] = useState(0);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [unlockDate, setUnlockDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getLocalDateString());
+  const [unlockDate, setUnlockDate] = useState(getLocalDateString());
   const [resHighlights, setResHighlights] = useState({});
   const [unlockHighlights, setUnlockHighlights] = useState({});
   const [editingRes, setEditingRes] = useState(null); // { res, tempName }
@@ -32,7 +33,7 @@ const AdminCommunity = () => {
     const commData = data.filter(r => r.communityId === community?.id);
     
     const hl = {};
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     commData.forEach(r => {
       if (r.userId !== 'SYSTEM_UNLOCKED' && r.date >= todayStr) {
         if (!hl[r.date]) hl[r.date] = [];
@@ -49,7 +50,7 @@ const AdminCommunity = () => {
     const commData = data.filter(r => r.communityId === community?.id);
     
     const hl = {};
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     commData.forEach(r => {
       if (r.userId === 'SYSTEM_UNLOCKED' && r.date >= todayStr) {
         if (!hl[r.date]) hl[r.date] = [];

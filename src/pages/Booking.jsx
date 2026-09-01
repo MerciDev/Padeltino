@@ -4,12 +4,13 @@ import { getCommunities, getReservationsByDate, addReservation, removeReservatio
 import Button from '../components/Button';
 import UrbanizationModel from '../components/UrbanizationModel';
 import MonthCalendar from '../components/MonthCalendar';
+import { getLocalDateString } from '../utils/date';
 
 const Booking = ({ user }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [date, setDate] = useState(location.state?.date || new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(location.state?.date || getLocalDateString());
   const [dailyReservations, setDailyReservations] = useState([]);
   const [highlights, setHighlights] = useState({});
   const [communities, setCommunities] = useState([]);
@@ -23,7 +24,7 @@ const Booking = ({ user }) => {
     const commData = data.filter(r => r.communityId === user.communityId);
     
     const hl = {};
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     commData.forEach(r => {
       if (r.date >= todayStr) {
         if (!hl[r.date]) hl[r.date] = [];
