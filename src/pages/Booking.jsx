@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCommunities, getReservationsByDate, addReservation } from '../store/api';
 import Button from '../components/Button';
+import UrbanizationModel from '../components/UrbanizationModel';
 
 const Booking = ({ user }) => {
   const navigate = useNavigate();
@@ -10,6 +11,7 @@ const Booking = ({ user }) => {
   const [dailyReservations, setDailyReservations] = useState([]);
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCourt, setSelectedCourt] = useState(null);
   
   // Custom Modal State
   const [bookingModal, setBookingModal] = useState({ isOpen: false, courtId: null, timeSlot: null, courtName: '' });
@@ -105,8 +107,41 @@ const Booking = ({ user }) => {
     return <div className="page-container"><p style={{ color: 'var(--clr-text-muted)' }}>Cargando pistas...</p></div>;
   }
 
+  // VISTA 1: Selección de Pista
+  if (!selectedCourt) {
+    return (
+      <div className="page-container" style={{ maxWidth: '1200px' }}>
+        <div className="page-header">
+          <h1 className="page-title">Selecciona una pista</h1>
+          <p className="page-subtitle">{userCommunity.name}</p>
+        </div>
+        <div className="card-grid">
+          {courts.map(court => (
+            <div 
+              key={court.id} 
+              className="card community-card-3d" 
+              onClick={() => setSelectedCourt(court)}
+              style={{ cursor: 'pointer', padding: 0, overflow: 'hidden' }}
+            >
+              <div className="community-card-3d-model" style={{ height: '240px' }}>
+                <UrbanizationModel color={court.color || '#9ca3af'} />
+              </div>
+              <div className="card-content" style={{ padding: '24px' }}>
+                <h3 className="card-title" style={{ fontSize: '1.25rem', marginBottom: '8px' }}>{court.name}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--clr-text-muted)' }}>
+                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: court.color || '#9ca3af' }}></div>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>Color de pista</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // Generamos los bloques renderizables por cada pista
-  const courtColumns = courts.map(court => {
+  const courtColumns = [selectedCourt].map(court => {
     const blocks = [];
     
     if (court.config?.schedules) {
@@ -152,34 +187,42 @@ const Booking = ({ user }) => {
   return (
     <div className="page-container" style={{ maxWidth: '1200px' }}>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '20px' }}>
-        <div>
-          <h1 className="page-title">Horarios de Pistas</h1>
-          <p className="page-subtitle">{userCommunity.name}</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button 
+            onClick={() => setSelectedCourt(null)}
+            style={{ background: 'none', border: 'none', color: 'var(--clr-text-muted)', cursor: 'pointer', fontSize: '1.2rem', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            aria-label="Volver a pistas"
+          >
+            ←
+          </button>
+          <div>
+            <h1 className="page-title">{selectedCourt.name}</h1>
+            <p className="page-subtitle">{userCommunity.name} - Horarios</p>
+          </div>
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="date-navigation">
           <Button 
             variant="secondary" 
             onClick={() => setDate(prevDate.toISOString().split('T')[0])}
-            style={{ padding: '12px 16px' }}
+            className="date-nav-btn"
           >
             ← {formatDateLabel(prevDate)}
           </Button>
           
-          <div style={{ background: 'var(--clr-surface)', padding: '12px 20px', borderRadius: 'var(--radius-md)', border: '1px solid var(--clr-border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <label style={{ fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Actual</label>
+          <div className="date-current-picker">
+            <label>Actual</label>
             <input 
               type="date" 
               value={date} 
               onChange={(e) => setDate(e.target.value)} 
-              style={{ background: 'transparent', border: 'none', color: 'var(--clr-text)', fontSize: '1rem', outline: 'none', cursor: 'pointer', fontWeight: 600 }}
             />
           </div>
 
           <Button 
             variant="secondary" 
             onClick={() => setDate(nextDate.toISOString().split('T')[0])}
-            style={{ padding: '12px 16px' }}
+            className="date-nav-btn"
           >
             {formatDateLabel(nextDate)} →
           </Button>

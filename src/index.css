@@ -76,7 +76,7 @@ input { font-family: var(--font); }
 .page-container {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 40px 24px 80px;
+  padding: 40px 24px 120px; /* Incrementado para móviles */
   width: 100%;
 }
 
@@ -181,6 +181,21 @@ input { font-family: var(--font); }
   padding: 8px;
 }
 
+.navbar-mobile-toggle .line {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: center;
+}
+
+.navbar-mobile-toggle.is-open .line1 {
+  transform: translateY(6px) rotate(45deg);
+}
+.navbar-mobile-toggle.is-open .line2 {
+  opacity: 0;
+}
+.navbar-mobile-toggle.is-open .line3 {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
 .navbar-menu {
   display: flex;
   align-items: center;
@@ -195,7 +210,7 @@ input { font-family: var(--font); }
   }
   
   .navbar-menu {
-    display: none;
+    display: flex;
     flex-direction: column;
     position: absolute;
     top: 64px;
@@ -208,10 +223,20 @@ input { font-family: var(--font); }
     padding: 24px;
     gap: 16px;
     align-items: stretch;
+
+    /* Animations */
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
   }
 
   .navbar-menu.is-open {
-    display: flex;
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
   }
 
   .navbar-links {
@@ -994,6 +1019,7 @@ input { font-family: var(--font); }
   position: relative;
   background: var(--clr-surface);
   border-radius: var(--radius-md);
+  padding-bottom: 24px; /* Margen extra al final del scroll */
 }
 
 .timetable-time-axis {
@@ -1129,4 +1155,65 @@ input { font-family: var(--font); }
   width: 90%;
   box-shadow: 0 20px 40px rgba(0,0,0,0.4);
   text-align: center;
+}
+
+/* ============================================
+   DATE NAVIGATION
+   ============================================ */
+.date-navigation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+}
+
+.date-nav-btn {
+  padding: 12px 16px;
+}
+
+.date-current-picker {
+  background: var(--clr-surface);
+  padding: 12px 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--clr-border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.date-current-picker label {
+  font-size: 0.85rem;
+  color: var(--clr-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.date-current-picker input {
+  background: transparent;
+  border: none;
+  color: var(--clr-text);
+  font-size: 1rem;
+  outline: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .date-navigation {
+    flex-wrap: wrap;
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  .date-current-picker {
+    order: -1;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .date-nav-btn {
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+  }
 }

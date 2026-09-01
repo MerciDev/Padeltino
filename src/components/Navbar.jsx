@@ -14,20 +14,11 @@ const Navbar = ({ isAdmin, onLogout, user }) => {
       <div className="navbar-inner">
         <Link to="/" className="navbar-logo" onClick={closeMenu}>PADELTINO</Link>
         
-        <button className="navbar-mobile-toggle" onClick={toggleMenu} aria-label="Toggle menu">
+        <button className={`navbar-mobile-toggle ${isMenuOpen ? 'is-open' : ''}`} onClick={toggleMenu} aria-label="Toggle menu">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            {isMenuOpen ? (
-              <>
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </>
-            ) : (
-              <>
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </>
-            )}
+            <line className="line line1" x1="3" y1="6" x2="21" y2="6" />
+            <line className="line line2" x1="3" y1="12" x2="21" y2="12" />
+            <line className="line line3" x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
 
