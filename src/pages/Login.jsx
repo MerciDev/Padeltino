@@ -1,0 +1,143 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams, Link } from 'react-router-dom';
+import Input from '../components/Input';
+import Button from '../components/Button';
+import { getCommunities } from '../store/api';
+
+const Login = ({ onLogin }) => {
+  const { communityId } = useParams();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [community, setCommunity] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  const isGlobalAdminLogin = communityId === 'admin';
+
+  useEffect(() => {
+    if (isGlobalAdminLogin) {
+      setLoading(false);
+      return;
+    }
+    const fetchComm = async () => {
+      const comms = await getCommunities();
+      const found = comms.find(c => c.id === Number(communityId));
+      setCommunity(found);
+      setLoading(false);
+    };
+    fetchComm();
+  }, [communityId, isGlobalAdminLogin]);
+
+  const parseDisplayName = (username) => {
+    if (username.toLowerCase() === 'admin') return 'Administrador';
+    
+    const regex = /^p(\d+)_([0-9b]+)([a-z]+)$/i;
+    const match = username.match(regex);
+    
+    if (match) {
+      const portal = match[1];
+      const floorRaw = match[2].toLowerCase();
+      const door = match[3].toUpperCase();
+      
+      const floorStr = floorRaw === 'b' ? 'Bajo' : `${floorRaw}º`;
+      return `Portal ${portal}, ${floorStr} ${door}`;
+    }
+    
+    return username;
+  };
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (!username.trim() || !password.trim()) return;
+
+    if (username !== password && username.toLowerCase() !== 'admin') {
+      alert('Para cuentas de vecinos, el usuario y la contraseña deben ser iguales (ej. p1_bA).');
+      return;
+    }
+
+    const isAdmin = username.toLowerCase() === 'admin';
+    const displayName = parseDisplayName(username);
+    
+    // Asignar fallback community ID (ej 1) si es global admin para no romper rutas
+    const fallbackId = community ? community.id : 1;
+
+    const userData = { 
+      name: displayName, 
+      username: username.toLowerCase(), 
+      isAdmin, 
+      id: username.toLowerCase(),
+      communityId: isGlobalAdminLogin ? fallbackId : Number(communityId)
+    };
+    
+    localStorage.setItem('padeltino_user', JSON.stringify(userData));
+    onLogin(userData);
+    navigate('/dashboard');
+  };
+
+  if (loading) {
+    return <div className="page-container"><p style={{ color: 'var(--clr-text-muted)' }}>Cargando urbanización...</p></div>;
+  }
+
+  if (!community && !isGlobalAdminLogin) {
+    return <div className="page-container"><p>Urbanización no encontrada.</p><Link to="/">Volver</Link></div>;
+  }
+
+  return (
+    <div className="login-page">
+      <div className="login-card card">
+        <div className="login-logo">
+          <div className="login-logo-mark">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 2c4.41 0 8 3.59 8 8s-3.59 8-8 8-8-3.59-8-8 3.59-8 8-8zm-1 5v2H9v2h2v6h2v-6h2v-2h-2V9h-2z"/>
+            </svg>
+          </div>
+          <div className="login-brand">PADELTINO</div>
+          <div className="login-tagline">
+            {isGlobalAdminLogin ? 'Acceso Administrador General' : `Acceso a ${community.name}`}
+          </div>
+        </div>
+
+        <form className="login-form" onSubmit={handleLogin}>
+          
+          <Input
+            label="Usuario"
+            id="username"
+            placeholder={isGlobalAdminLogin ? 'admin' : 'Introduce tu usuario (ej. p1_bA)'}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+            autoFocus
+          />
+          <Input
+            label="Contraseña"
+            id="password"
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+
+          {!isGlobalAdminLogin && (
+            <div className="login-hint" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span><strong>Vecinos:</strong> Usa tu piso como usuario y contraseña (ej. <strong>p1_bA</strong>).</span>
+              </div>
+            </div>
+          )}
+
+          <Button type="submit" full size="lg" style={{ marginTop: '10px' }}>
+            Entrar
+          </Button>
+          
+          <div style={{ textAlign: 'center', marginTop: '16px' }}>
+            <Link to="/" style={{ color: 'var(--clr-text-muted)', fontSize: '0.85rem' }}>← Cambiar de urbanización</Link>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default Login;
