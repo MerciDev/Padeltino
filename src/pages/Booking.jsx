@@ -1,20 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getCommunities, getReservationsByDate, addReservation } from '../store/api';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { getCommunities, getReservationsByDate, addReservation, removeReservation } from '../store/api';
 import Button from '../components/Button';
 import UrbanizationModel from '../components/UrbanizationModel';
 
 const Booking = ({ user }) => {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(location.state?.date || new Date().toISOString().split('T')[0]);
   const [dailyReservations, setDailyReservations] = useState([]);
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCourt, setSelectedCourt] = useState(null);
+
+  // Auto-select court if provided in navigation state
+  useEffect(() => {
+    if (location.state?.courtId && communities.length > 0) {
+      const userComm = communities.find(c => c.id === user.communityId);
+      if (userComm) {
+        const targetCourt = userComm.courts.find(c => c.id === location.state.courtId);
+        if (targetCourt) setSelectedCourt(targetCourt);
+      }
+    }
+  }, [location.state, communities, user.communityId]);
   
-  // Custom Modal State
+  // Modals state
   const [bookingModal, setBookingModal] = useState({ isOpen: false, courtId: null, timeSlot: null, courtName: '' });
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', confirmText: 'Confirmar', action: null });
+  const [infoModal, setInfoModal] = useState({ isOpen: false, courtId: null, courtName: '', timeSlot: null, bookedByName: '', isOwner: false });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -84,6 +98,30 @@ const Booking = ({ user }) => {
 
   const handleBookClick = (courtId, courtName, timeSlot) => {
     setBookingModal({ isOpen: true, courtId, timeSlot, courtName });
+  };
+
+  const handleCancelClick = (courtId, timeSlot) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Cancelar Reserva',
+      message: '¿Estás seguro de que deseas eliminar esta reserva?',
+      confirmText: 'Eliminar',
+      action: async () => {
+        const success = await removeReservation(date, userCommunity.id, courtId, timeSlot);
+        if (success) {
+          const freshRes = await getReservationsByDate(date);
+          setDailyReservations(freshRes.filter(r => r.communityId === userCommunity.id));
+        } else {
+          alert('Error al cancelar la reserva.');
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setInfoModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  const handleInfoClick = (courtId, courtName, timeSlot, bookedByName, isOwner) => {
+    setInfoModal({ isOpen: true, courtId, courtName, timeSlot, bookedByName, isOwner });
   };
 
   const confirmBooking = async () => {
@@ -164,15 +202,54 @@ const Booking = ({ user }) => {
           const timeSlot = `${format(current)} - ${format(next)}`;
           
           // Check states
-          const isBookedByMe = dailyReservations.some(r => r.courtId === court.id && r.timeSlot === timeSlot && r.userId === user.id);
-          const isBookedByOther = !isBookedByMe && dailyReservations.some(r => r.courtId === court.id && r.timeSlot === timeSlot);
+          const isForceUnlocked = dailyReservations.some(r => r.courtId === court.id && r.timeSlot === timeSlot && r.userId === 'SYSTEM_UNLOCKED');
+          const myReservation = dailyReservations.find(r => r.courtId === court.id && r.timeSlot === timeSlot && r.userId === user.id && r.userId !== 'SYSTEM_UNLOCKED');
+          const otherReservation = !myReservation && dailyReservations.find(r => r.courtId === court.id && r.timeSlot === timeSlot && r.userId !== 'SYSTEM_UNLOCKED');
           
+          const isBookedByMe = !!myReservation;
+          const isBookedByOther = !!otherReservation;
+          const bookedByName = otherReservation ? otherReservation.userName : null;
+          
+          let isLockedByTime = false;
+          let lockReason = null;
+          
+          const [y, m, d] = date.split('-').map(Number);
+          const slotDate = new Date(y, m - 1, d, Math.floor(current / 60), current % 60);
+          
+          // 1. Check if in the past
+          if (slotDate.getTime() < Date.now()) {
+            isLockedByTime = true;
+            lockReason = 'Pasado';
+          } 
+          // 2. Check advance booking limit
+          else if (court.config?.advanceBookingLimit !== undefined && court.config.advanceBookingLimit !== null && !isForceUnlocked) {
+            const limitHours = court.config.advanceBookingLimit;
+            
+            if (limitHours === 0) {
+              const today = new Date();
+              if (slotDate.getFullYear() !== today.getFullYear() || slotDate.getMonth() !== today.getMonth() || slotDate.getDate() !== today.getDate()) {
+                isLockedByTime = true;
+                lockReason = 'Sólo Mismo Día';
+              }
+            } else {
+              const diffHours = (slotDate.getTime() - Date.now()) / (1000 * 60 * 60);
+              if (diffHours > limitHours) {
+                isLockedByTime = true;
+                lockReason = `En ${limitHours}h`;
+              }
+            }
+          }
+
           blocks.push({
             timeSlot,
             startStr: format(current),
             duration: intv,
             isBookedByMe,
-            isBookedByOther
+            isBookedByOther,
+            bookedByName,
+            isLockedByTime,
+            isForceUnlocked,
+            lockReason
           });
 
           current = next;
@@ -210,12 +287,33 @@ const Booking = ({ user }) => {
             ← {formatDateLabel(prevDate)}
           </Button>
           
-          <div className="date-current-picker">
-            <label>Actual</label>
+          <div className="date-current-picker" style={{ position: 'relative', display: 'inline-block' }}>
+            <div 
+              className="input-field" 
+              style={{ 
+                padding: '8px 16px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                minWidth: '140px',
+                pointerEvents: 'none'
+              }}
+            >
+              {formatDateLabel(currentDateObj)}
+            </div>
             <input 
               type="date" 
               value={date} 
               onChange={(e) => setDate(e.target.value)} 
+              style={{ 
+                position: 'absolute', 
+                top: 0, 
+                left: 0, 
+                width: '100%', 
+                height: '100%', 
+                opacity: 0, 
+                cursor: 'pointer' 
+              }}
             />
           </div>
 
@@ -257,7 +355,8 @@ const Booking = ({ user }) => {
                 {/* Grid (Fondo rayado horizontal para guiar la vista) */}
                 <div className="timetable-grid" style={{ height: `${HOURS_COUNT * 60}px` }}>
                   {Array.from({ length: HOURS_COUNT }).map((_, i) => (
-                    <div key={i} className="timetable-grid-line" style={{ height: '60px' }}></div>
+                    <div key={i} className="timetable-grid-line" style={{ height: '60px' }}>
+                    </div>
                   ))}
 
                   {/* Bloques de Reservas */}
@@ -272,11 +371,20 @@ const Booking = ({ user }) => {
                     if (block.isBookedByMe) {
                       bgColor = court.color || 'var(--clr-green)';
                       borderColor = court.color || 'var(--clr-green)';
+                      cursor = 'pointer';
                     } else if (block.isBookedByOther) {
                       bgColor = court.color || 'var(--clr-green)'; // Use court color for taken too!
                       borderColor = 'var(--clr-border)';
                       opacity = 0.6;
-                      cursor = 'not-allowed';
+                      cursor = 'pointer';
+                    } else if (block.isLockedByTime) {
+                      bgColor = 'var(--clr-surface-2)';
+                      borderColor = 'var(--clr-border)';
+                      opacity = 0.6;
+                      cursor = user.isAdmin ? 'pointer' : 'not-allowed';
+                    } else if (block.isForceUnlocked) {
+                      bgColor = `${court.color || '#4ade80'}25`; // Slightly more highlighted
+                      borderColor = court.color || '#4ade80'; 
                     } else {
                       // Disponible
                       bgColor = `${court.color || '#4ade80'}15`; // 15% opacity hexa (aprox)
@@ -286,7 +394,7 @@ const Booking = ({ user }) => {
                     return (
                       <div 
                         key={idx}
-                        className={`timetable-slot ${block.isBookedByMe ? 'is-mine' : block.isBookedByOther ? 'is-taken' : 'is-free'}`}
+                        className={`timetable-slot ${block.isBookedByMe ? 'is-mine' : block.isBookedByOther ? 'is-taken' : (block.isLockedByTime ? 'is-locked' : 'is-free')}`}
                         style={{
                           top: `${top}px`,
                           height: `${height}px`,
@@ -295,16 +403,68 @@ const Booking = ({ user }) => {
                           opacity: opacity,
                           cursor: cursor
                         }}
-                        onClick={() => {
+                        onClick={async () => {
+                          if (block.isBookedByMe || block.isBookedByOther) {
+                            handleInfoClick(court.id, court.name, block.timeSlot, block.bookedByName, block.isBookedByMe);
+                            return;
+                          }
+                          
                           if (!block.isBookedByMe && !block.isBookedByOther) {
+                            if (block.isLockedByTime) {
+                              if (user.isAdmin) {
+                                // Admin unlocking for everyone
+                                setConfirmModal({
+                                  isOpen: true,
+                                  title: 'Desbloquear Horario',
+                                  message: '¿Deseas desbloquear este horario para que los usuarios puedan reservarlo libremente?',
+                                  confirmText: 'Desbloquear',
+                                  action: async () => {
+                                    const success = await addReservation(date, userCommunity.id, court.id, block.timeSlot, 'SYSTEM_UNLOCKED', 'Desbloqueo Manual');
+                                    if (success) {
+                                      const freshRes = await getReservationsByDate(date);
+                                      setDailyReservations(freshRes.filter(r => r.communityId === userCommunity.id));
+                                    }
+                                    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                                  }
+                                });
+                              }
+                              return;
+                            }
+                            
+                            if (block.isForceUnlocked && user.isAdmin) {
+                              // Admin re-locking it (optional, but good UX if they click it by mistake)
+                              setConfirmModal({
+                                isOpen: true,
+                                title: 'Restaurar Bloqueo',
+                                message: 'Este horario fue desbloqueado manualmente. ¿Deseas volver a aplicar la regla de tiempo y bloquearlo?',
+                                confirmText: 'Bloquear',
+                                action: async () => {
+                                  const success = await removeReservation(date, userCommunity.id, court.id, block.timeSlot);
+                                  if (success) {
+                                    const freshRes = await getReservationsByDate(date);
+                                    setDailyReservations(freshRes.filter(r => r.communityId === userCommunity.id));
+                                  }
+                                  setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                                }
+                              });
+                              return;
+                            }
+
                             handleBookClick(court.id, court.name, block.timeSlot);
                           }
                         }}
                       >
-                        <div className="timetable-slot-time">{block.timeSlot}</div>
-                        {block.isBookedByMe && <div className="timetable-slot-status">✓ Reservado por ti</div>}
-                        {block.isBookedByOther && <div className="timetable-slot-status">Ocupado</div>}
-                        {!block.isBookedByMe && !block.isBookedByOther && <div className="timetable-slot-status">Disponible</div>}
+                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--clr-text-muted)', marginBottom: '4px' }}>
+                          {block.timeSlot}
+                        </div>
+                        {block.isBookedByMe && <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>Tu Reserva</div>}
+                        {block.isBookedByOther && <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--clr-text)' }}>Reservado por {block.bookedByName || 'Usuario'}</div>}
+                        {block.isLockedByTime && <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--clr-text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}><span>🔒</span> {block.lockReason}</div>}
+                        {!block.isBookedByMe && !block.isBookedByOther && !block.isLockedByTime && (
+                          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: court.color || 'var(--clr-green)' }}>
+                            Libre {block.isForceUnlocked && <span style={{fontSize: '0.7rem', color: 'var(--clr-text-muted)', fontWeight: 'normal'}}>(Desbloq.)</span>}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -316,16 +476,66 @@ const Booking = ({ user }) => {
 
       </div>
 
+      {/* Modal de Información de Reserva */}
+      {infoModal.isOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2 className="modal-title">Detalles de la Reserva</h2>
+            <div className="modal-body">
+              <div style={{ background: 'var(--clr-surface-2)', padding: '16px', borderRadius: 'var(--radius-md)', marginBottom: '24px' }}>
+                <p style={{ margin: '0 0 8px 0', fontSize: '1.1rem' }}><strong>{infoModal.courtName}</strong></p>
+                <p style={{ margin: '0 0 8px 0', color: 'var(--clr-text-muted)' }}>Fecha: {formatDateLabel(new Date(date))}</p>
+                <p style={{ margin: '0 0 8px 0', color: 'var(--clr-text-muted)' }}>Hora: {infoModal.timeSlot}</p>
+                <p style={{ margin: 0, color: 'var(--clr-text)' }}>Reservado por: <strong>{infoModal.bookedByName || 'Usuario'}</strong></p>
+              </div>
+            </div>
+            <div className="modal-actions" style={{ flexDirection: (infoModal.isOwner || user.isAdmin) ? 'row' : 'column' }}>
+              <Button variant="secondary" onClick={() => setInfoModal({ isOpen: false, courtId: null, courtName: '', timeSlot: null, bookedByName: '', isOwner: false })}>
+                Cerrar
+              </Button>
+              {(infoModal.isOwner || user.isAdmin) && (
+                <Button onClick={() => handleCancelClick(infoModal.courtId, infoModal.timeSlot)} variant="danger">
+                  Cancelar Reserva
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Reserva */}
       {bookingModal.isOpen && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '8px' }}>Confirmar Reserva</h2>
-            <p style={{ color: 'var(--clr-text-muted)', marginBottom: '24px' }}>
-              Estás a punto de reservar <strong>{bookingModal.courtName}</strong> en el horario de <strong>{bookingModal.timeSlot}</strong>.
-            </p>
-            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
-              <Button onClick={closeModal} variant="secondary">Cancelar</Button>
-              <Button onClick={confirmBooking} style={{ backgroundColor: 'var(--clr-green)' }}>Confirmar</Button>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2 className="modal-title">Confirmar Reserva</h2>
+            <div className="modal-body">
+              <div style={{ background: 'var(--clr-surface-2)', padding: '16px', borderRadius: 'var(--radius-md)', marginBottom: '24px' }}>
+                <p style={{ margin: '0 0 8px 0', fontSize: '1.1rem' }}><strong>{bookingModal.courtName}</strong></p>
+                <p style={{ margin: '0 0 8px 0', color: 'var(--clr-text-muted)' }}>Fecha: {formatDateLabel(new Date(date))}</p>
+                <p style={{ margin: 0, color: 'var(--clr-text-muted)' }}>Hora: {bookingModal.timeSlot}</p>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <Button variant="secondary" onClick={() => setBookingModal({ isOpen: false, courtId: null, timeSlot: null, courtName: '' })}>Cancelar</Button>
+              <Button onClick={confirmBooking}>Confirmar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Genérico de Confirmación */}
+      {confirmModal.isOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2 className="modal-title">{confirmModal.title}</h2>
+            <div className="modal-body">
+              <p style={{ color: 'var(--clr-text-muted)', fontSize: '1rem', marginBottom: '24px' }}>
+                {confirmModal.message}
+              </p>
+            </div>
+            <div className="modal-actions">
+              <Button variant="secondary" onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}>Cancelar</Button>
+              <Button onClick={confirmModal.action}>{confirmModal.confirmText}</Button>
             </div>
           </div>
         </div>

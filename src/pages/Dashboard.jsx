@@ -18,15 +18,9 @@ const Dashboard = ({ user }) => {
       const comms = await getCommunities();
       setCommunities(comms);
 
-      let reservations = [];
-      if (user.isAdmin) {
-        reservations = await getAllReservations();
-      } else {
-        // Para asegurar que vemos también las reservas de los demás en la urba?
-        // No, en el Dashboard el usuario solo ve las suyas (userId == user.id) 
-        // o las que tengan su nombre en mock data. Supabase usa user_id.
-        reservations = await getUserReservations(user.id);
-      }
+      // Solo obtenemos las reservas del propio usuario para el panel principal.
+      // Los administradores gestionan las reservas de otros desde el calendario.
+      let reservations = await getUserReservations(user.id);
       
       reservations.sort((a, b) => new Date(a.date) - new Date(b.date));
       setUserReservations(reservations);
@@ -106,7 +100,15 @@ const Dashboard = ({ user }) => {
             const isPast = res.date < today;
             
             return (
-              <div key={i} className="reservation-card">
+              <Link 
+                to="/book" 
+                state={{ date: res.date, courtId: res.courtId }} 
+                key={i} 
+                className="reservation-card" 
+                style={{ textDecoration: 'none', color: 'inherit', display: 'block', transition: 'transform 0.2s', cursor: 'pointer' }}
+                onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
                 <div className="reservation-card-top">
                   <div>
                     <div className="reservation-court">{court?.name || 'Pista Eliminada'}</div>
@@ -117,12 +119,7 @@ const Dashboard = ({ user }) => {
                   </span>
                 </div>
                 <div className="reservation-slot font-mono">{res.timeSlot}</div>
-                {user.isAdmin && (
-                  <div style={{ fontSize: '0.75rem', color: 'var(--clr-text-muted)', marginTop: '8px' }}>
-                    Urbanización: {community?.name}
-                  </div>
-                )}
-              </div>
+              </Link>
             );
           })}
         </div>

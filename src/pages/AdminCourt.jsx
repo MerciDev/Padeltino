@@ -120,12 +120,12 @@ const AdminCourt = () => {
         <div style={{ display: 'flex', flexWrap: 'wrap' }}>
           
           {/* Vista 3D (Mitad Izquierda) */}
-          <div style={{ flex: '1 1 400px', minHeight: '400px', backgroundColor: 'var(--clr-surface-2)', position: 'relative' }}>
+          <div style={{ flex: '1 1 280px', minHeight: '400px', backgroundColor: 'var(--clr-surface-2)', position: 'relative' }}>
              <UrbanizationModel color={localCourt.color || '#9ca3af'} />
           </div>
 
           {/* Formulario (Mitad Derecha) */}
-          <div style={{ flex: '1 1 400px', padding: '40px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+          <div style={{ flex: '1 1 280px', padding: '40px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
             
             <div>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '24px' }}>Detalles de la pista</h2>
@@ -178,6 +178,28 @@ const AdminCourt = () => {
                     />
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '16px' }}>Reglas de Reserva</h2>
+              <div style={{ marginBottom: '32px' }}>
+                <label className="form-label" style={{ display: 'block', marginBottom: '8px' }}>Límite de Antelación</label>
+                <select 
+                  className="input-field" 
+                  value={localCourt.config.advanceBookingLimit !== undefined && localCourt.config.advanceBookingLimit !== null ? localCourt.config.advanceBookingLimit : 'null'}
+                  onChange={(e) => handleUpdateField('advanceBookingLimit', e.target.value === 'null' ? null : Number(e.target.value))}
+                  style={{ width: '100%', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--clr-border)', background: 'var(--clr-bg)', color: 'var(--clr-text)' }}
+                >
+                  <option value="null">Sin límite (Cualquier fecha futura)</option>
+                  <option value="0">Sólo en el mismo día</option>
+                  <option value="24">Hasta 24 horas antes</option>
+                  <option value="48">Hasta 48 horas antes</option>
+                  <option value="168">Hasta 1 semana antes (168h)</option>
+                </select>
+                <p style={{ color: 'var(--clr-text-muted)', fontSize: '0.85rem', marginTop: '8px' }}>
+                  Determina con cuánta antelación exacta respecto al inicio del turno se puede reservar.
+                </p>
               </div>
             </div>
 
