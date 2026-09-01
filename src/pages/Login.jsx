@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import Input from '../components/Input';
 import Button from '../components/Button';
-import { getCommunities } from '../store/api';
+import { getCommunities, getUser, hashPassword } from '../store/api';
 
 const Login = ({ onLogin }) => {
   const { communityId } = useParams();
@@ -46,7 +46,7 @@ const Login = ({ onLogin }) => {
     return username;
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) return;
 
@@ -57,6 +57,19 @@ const Login = ({ onLogin }) => {
 
     const isAdmin = username.toLowerCase() === 'admin';
     const displayName = parseDisplayName(username);
+    
+    // Check admin password
+    if (isAdmin) {
+      setLoading(true);
+      const dbUser = await getUser('admin');
+      const hashedInput = await hashPassword(password);
+      if (dbUser && dbUser.password !== hashedInput) {
+        alert('Contraseña de administrador incorrecta.');
+        setLoading(false);
+        return;
+      }
+      setLoading(false);
+    }
     
     // Asignar fallback community ID (ej 1) si es global admin para no romper rutas
     const fallbackId = community ? community.id : 1;

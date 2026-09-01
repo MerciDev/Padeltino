@@ -2,23 +2,62 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import { getCommunities, getReservationsByDate, removeReservation, updateReservation, updateCommunityInfo, addCourt } from '../store/api';
+import { getCommunities, getReservationsByDate, removeReservation, updateReservation, updateCommunityInfo, addCourt, getReservationsByMonthRange } from '../store/api';
 import UrbanizationModel from '../components/UrbanizationModel';
+import MonthCalendar from '../components/MonthCalendar';
 
 const AdminCommunity = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [refresh, setRefresh] = useState(0);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [unlockDate, setUnlockDate] = useState(new Date().toISOString().split('T')[0]);
+  const [resHighlights, setResHighlights] = useState({});
+  const [unlockHighlights, setUnlockHighlights] = useState({});
   const [editingRes, setEditingRes] = useState(null); // { res, tempName }
   const [community, setCommunity] = useState(null);
   const [dailyReservations, setDailyReservations] = useState([]);
+  const [dailyUnlocks, setDailyUnlocks] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Local state for explicit saving
   const [localName, setLocalName] = useState('');
   const [localAddress, setLocalAddress] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const handleResMonthChange = async (year, month) => {
+    const start = `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
+    const end = `${year}-${(month + 1).toString().padStart(2, '0')}-31`;
+    const data = await getReservationsByMonthRange(start, end);
+    const commData = data.filter(r => r.communityId === community?.id);
+    
+    const hl = {};
+    const todayStr = new Date().toISOString().split('T')[0];
+    commData.forEach(r => {
+      if (r.userId !== 'SYSTEM_UNLOCKED' && r.date >= todayStr) {
+        if (!hl[r.date]) hl[r.date] = [];
+        if (!hl[r.date].includes('green')) hl[r.date].push('green');
+      }
+    });
+    setResHighlights(hl);
+  };
+
+  const handleUnlockMonthChange = async (year, month) => {
+    const start = `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
+    const end = `${year}-${(month + 1).toString().padStart(2, '0')}-31`;
+    const data = await getReservationsByMonthRange(start, end);
+    const commData = data.filter(r => r.communityId === community?.id);
+    
+    const hl = {};
+    const todayStr = new Date().toISOString().split('T')[0];
+    commData.forEach(r => {
+      if (r.userId === 'SYSTEM_UNLOCKED' && r.date >= todayStr) {
+        if (!hl[r.date]) hl[r.date] = [];
+        if (!hl[r.date].includes('red')) hl[r.date].push('red');
+      }
+    });
+    setUnlockHighlights(hl);
+  };
 
   const fetchCommunityData = async () => {
     setLoading(true);
@@ -29,14 +68,30 @@ const AdminCommunity = () => {
       setLocalName(found.name);
       setLocalAddress(found.address || '');
     }
-    const res = await getReservationsByDate(date);
-    setDailyReservations(res.filter(r => r.communityId === Number(id)));
     setLoading(false);
   };
 
   useEffect(() => {
     fetchCommunityData();
-  }, [id, date, refresh]);
+  }, [id, refresh]);
+
+  useEffect(() => {
+    if (!community) return;
+    const fetchReservations = async () => {
+      const data = await getReservationsByDate(date);
+      setDailyReservations(data.filter(r => r.communityId === community.id && r.userId !== 'SYSTEM_UNLOCKED'));
+    };
+    fetchReservations();
+  }, [date, community, refresh]);
+
+  useEffect(() => {
+    if (!community) return;
+    const fetchUnlocks = async () => {
+      const data = await getReservationsByDate(unlockDate);
+      setDailyUnlocks(data.filter(r => r.communityId === community.id && r.userId === 'SYSTEM_UNLOCKED'));
+    };
+    fetchUnlocks();
+  }, [unlockDate, community, refresh]);
 
   if (loading) {
     return <div className="page-container"><p style={{ color: 'var(--clr-text-muted)' }}>Cargando panel...</p></div>;
@@ -137,42 +192,97 @@ const AdminCommunity = () => {
           </div>
         </div>
 
-        {/* Visor de Reservas */}
-        <div className="card">
-          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div className="card-title">Reservas del día</div>
+        {/* Visor de Reservas y Desbloqueos en Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px', marginBottom: '40px' }}>
+          
+          {/* Card: Reservas */}
+          <div className="card">
+            <div className="card-header" style={{ marginBottom: '16px' }}>
+              <div className="card-title">Reservas Reales</div>
             </div>
-            <Input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
+            
+            <MonthCalendar 
+              value={date} 
+              onChange={setDate} 
+              highlights={resHighlights} 
+              onMonthChange={handleResMonthChange} 
             />
+
+            <div style={{ marginTop: '24px' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px' }}>Día seleccionado: {date.split('-').reverse().join('/')}</h3>
+              {dailyReservations.length === 0 ? (
+                <p style={{ color: 'var(--clr-text-muted)', fontSize: '0.875rem', fontStyle: 'italic' }}>
+                  No hay reservas para esta fecha.
+                </p>
+              ) : (
+                <div className="reservation-list">
+                  {dailyReservations.map((res, i) => {
+                    const court = community.courts.find(c => c.id === res.courtId);
+                    return (
+                      <div key={i} className="reservation-list-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div className="reservation-list-user">{res.userName}</div>
+                          <div className="reservation-list-court">{court?.name || 'Pista Eliminada'}</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <div className="reservation-list-time font-mono">{res.timeSlot}</div>
+                          <Button size="sm" variant="secondary" onClick={() => setEditingRes({ res, tempName: res.userName })}>Editar</Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
-          {dailyReservations.length === 0 ? (
-            <p style={{ color: 'var(--clr-text-muted)', fontSize: '0.875rem', fontStyle: 'italic' }}>
-              No hay reservas para esta fecha en esta urbanización.
-            </p>
-          ) : (
-            <div className="reservation-list">
-              {dailyReservations.map((res, i) => {
-                const court = community.courts.find(c => c.id === res.courtId);
-                return (
-                  <div key={i} className="reservation-list-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div className="reservation-list-user">{res.userName}</div>
-                      <div className="reservation-list-court">{court?.name || 'Pista Eliminada'}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <div className="reservation-list-time font-mono">{res.timeSlot}</div>
-                      <Button size="sm" variant="secondary" onClick={() => setEditingRes({ res, tempName: res.userName })}>Editar</Button>
-                    </div>
-                  </div>
-                );
-              })}
+          {/* Card: Desbloqueos */}
+          <div className="card">
+            <div className="card-header" style={{ marginBottom: '16px' }}>
+              <div className="card-title">Desbloqueos Manuales</div>
             </div>
-          )}
+            
+            <MonthCalendar 
+              value={unlockDate} 
+              onChange={setUnlockDate} 
+              highlights={unlockHighlights} 
+              onMonthChange={handleUnlockMonthChange} 
+            />
+
+            <div style={{ marginTop: '24px' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px' }}>Día seleccionado: {unlockDate.split('-').reverse().join('/')}</h3>
+              {dailyUnlocks.length === 0 ? (
+                <p style={{ color: 'var(--clr-text-muted)', fontSize: '0.875rem', fontStyle: 'italic' }}>
+                  No hay bloqueos anulados para esta fecha.
+                </p>
+              ) : (
+                <div className="reservation-list">
+                  {dailyUnlocks.map((res, i) => {
+                    const court = community.courts.find(c => c.id === res.courtId);
+                    return (
+                      <div key={i} className="reservation-list-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: 0.8 }}>
+                        <div>
+                          <div className="reservation-list-user" style={{ color: '#fbbf24' }}>{res.userName}</div>
+                          <div className="reservation-list-court">{court?.name || 'Pista Eliminada'}</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <div className="reservation-list-time font-mono" style={{ color: 'var(--clr-text-muted)' }}>{res.timeSlot}</div>
+                          <Button size="sm" variant="danger" onClick={async () => {
+                            if (window.confirm('¿Volver a bloquear este horario?')) {
+                              const success = await removeReservation(unlockDate, community.id, res.courtId, res.timeSlot);
+                              if (success) {
+                                setRefresh(r => r + 1);
+                              }
+                            }
+                          }}>Bloquear</Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Pistas */}

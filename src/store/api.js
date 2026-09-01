@@ -1,5 +1,12 @@
 import { supabase } from '../lib/supabase';
 
+export const hashPassword = async (password) => {
+  const msgBuffer = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
 export const getCommunities = async () => {
   const { data: communities, error: commError } = await supabase.from('communities').select('*');
   if (commError) {
@@ -34,14 +41,52 @@ export const getUser = async (id) => {
     id: data.id,
     name: data.name,
     communityId: data.community_id,
-    isAdmin: data.is_admin
+    isAdmin: data.is_admin,
+    password: data.password // Return password for verification
   };
+};
+
+export const updateUserPassword = async (userId, newPassword) => {
+  const hashedPassword = await hashPassword(newPassword);
+  
+  const { error } = await supabase
+    .from('users')
+    .update({ password: hashedPassword })
+    .eq('id', userId);
+  
+  if (error) {
+    console.error('Error updating password:', error);
+    return false;
+  }
+  return true;
 };
 
 export const getReservationsByDate = async (date) => {
   const { data, error } = await supabase.from('reservations').select('*').eq('date', date);
   if (error) {
     console.error('Error fetching reservations:', error);
+    return [];
+  }
+  return data.map(r => ({
+    id: r.id,
+    date: r.date,
+    communityId: r.community_id,
+    courtId: r.court_id,
+    timeSlot: r.time_slot,
+    userId: r.user_id,
+    userName: r.user_name
+  }));
+};
+
+export const getReservationsByMonthRange = async (startDate, endDate) => {
+  const { data, error } = await supabase
+    .from('reservations')
+    .select('*')
+    .gte('date', startDate)
+    .lte('date', endDate);
+
+  if (error) {
+    console.error('Error fetching monthly reservations:', error);
     return [];
   }
   return data.map(r => ({

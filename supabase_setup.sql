@@ -48,3 +48,7 @@ INSERT INTO users (id, name, community_id, is_admin) VALUES
 ('admin', 'Administrador Global', NULL, true),
 ('p1_ba', 'Bajo A', 1, false),
 ('p1_1a', '1º A', 1, false);
+
+-- 5. Añadir columna de password cifrada para admin (y futuros usuarios si se desea)
+-- El hash corresponde a la palabra 'admin' cifrada en SHA-256
+ALTER TABLE users ADD COLUMN password text DEFAULT '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';

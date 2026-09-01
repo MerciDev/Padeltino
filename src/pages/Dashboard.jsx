@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Button from '../components/Button';
-import { getUserReservations, getAllReservations, getCommunities } from '../store/api';
+import Input from '../components/Input';
+import { getUserReservations, getAllReservations, getCommunities, updateUserPassword } from '../store/api';
 const formatDate = (isoStr) => {
   if (!isoStr) return '';
   const [y, m, d] = isoStr.split('-');
@@ -12,6 +13,32 @@ const Dashboard = ({ user }) => {
   const [userReservations, setUserReservations] = useState([]);
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pwdModalOpen, setPwdModalOpen] = useState(false);
+  const [newPwd, setNewPwd] = useState('');
+  const [newPwdConfirm, setNewPwdConfirm] = useState('');
+  const [pwdError, setPwdError] = useState('');
+
+  const handlePasswordChange = async () => {
+    if (newPwd !== newPwdConfirm) {
+      setPwdError('Las contraseñas no coinciden.');
+      return;
+    }
+    if (newPwd.length < 4) {
+      setPwdError('La contraseña debe tener al menos 4 caracteres.');
+      return;
+    }
+    
+    const success = await updateUserPassword(user.id, newPwd);
+    if (success) {
+      alert('Contraseña actualizada correctamente.');
+      setPwdModalOpen(false);
+      setNewPwd('');
+      setNewPwdConfirm('');
+      setPwdError('');
+    } else {
+      setPwdError('Error al actualizar la contraseña. Inténtalo de nuevo.');
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -50,9 +77,14 @@ const Dashboard = ({ user }) => {
             {user.isAdmin ? 'Modo Administrador' : userCommunity?.name}
           </p>
         </div>
-        <Link to="/book">
-          <Button>+ Nueva reserva</Button>
-        </Link>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {user.isAdmin && (
+            <Button variant="secondary" onClick={() => setPwdModalOpen(true)}>Seguridad</Button>
+          )}
+          <Link to="/book">
+            <Button>+ Nueva reserva</Button>
+          </Link>
+        </div>
       </div>
 
       {/* Stats */}
@@ -122,6 +154,38 @@ const Dashboard = ({ user }) => {
               </Link>
             );
           })}
+        </div>
+      )}
+
+      {pwdModalOpen && (
+        <div className="modal-overlay" onClick={() => setPwdModalOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <h3 className="modal-title">Cambiar Contraseña</h3>
+            <div className="modal-body">
+              <p style={{ color: 'var(--clr-text-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>
+                Establece una nueva contraseña para tu cuenta de administrador.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <Input 
+                  type="password"
+                  label="Nueva Contraseña"
+                  value={newPwd}
+                  onChange={(e) => setNewPwd(e.target.value)}
+                />
+                <Input 
+                  type="password"
+                  label="Confirmar Contraseña"
+                  value={newPwdConfirm}
+                  onChange={(e) => setNewPwdConfirm(e.target.value)}
+                />
+                {pwdError && <p style={{ color: '#ef4444', fontSize: '0.85rem' }}>{pwdError}</p>}
+              </div>
+            </div>
+            <div className="modal-actions">
+              <Button variant="secondary" onClick={() => setPwdModalOpen(false)}>Cancelar</Button>
+              <Button style={{ backgroundColor: 'var(--clr-green)' }} onClick={handlePasswordChange}>Guardar</Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

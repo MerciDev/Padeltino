@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getCommunities, getReservationsByDate, addReservation, removeReservation } from '../store/api';
+import { getCommunities, getReservationsByDate, addReservation, removeReservation, getReservationsByMonthRange } from '../store/api';
 import Button from '../components/Button';
 import UrbanizationModel from '../components/UrbanizationModel';
+import MonthCalendar from '../components/MonthCalendar';
 
 const Booking = ({ user }) => {
   const navigate = useNavigate();
@@ -10,9 +11,31 @@ const Booking = ({ user }) => {
 
   const [date, setDate] = useState(location.state?.date || new Date().toISOString().split('T')[0]);
   const [dailyReservations, setDailyReservations] = useState([]);
+  const [highlights, setHighlights] = useState({});
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCourt, setSelectedCourt] = useState(null);
+
+  const handleMonthChange = async (year, month) => {
+    const start = `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
+    const end = `${year}-${(month + 1).toString().padStart(2, '0')}-31`;
+    const data = await getReservationsByMonthRange(start, end);
+    const commData = data.filter(r => r.communityId === user.communityId);
+    
+    const hl = {};
+    const todayStr = new Date().toISOString().split('T')[0];
+    commData.forEach(r => {
+      if (r.date >= todayStr) {
+        if (!hl[r.date]) hl[r.date] = [];
+        if (r.userId === 'SYSTEM_UNLOCKED') {
+          if (!hl[r.date].includes('red')) hl[r.date].push('red');
+        } else {
+          if (!hl[r.date].includes('green')) hl[r.date].push('green');
+        }
+      }
+    });
+    setHighlights(hl);
+  };
 
   // Auto-select court if provided in navigation state
   useEffect(() => {
@@ -278,52 +301,13 @@ const Booking = ({ user }) => {
           </div>
         </div>
         
-        <div className="date-navigation">
-          <Button 
-            variant="secondary" 
-            onClick={() => setDate(prevDate.toISOString().split('T')[0])}
-            className="date-nav-btn"
-          >
-            ← {formatDateLabel(prevDate)}
-          </Button>
-          
-          <div className="date-current-picker" style={{ position: 'relative', display: 'inline-block' }}>
-            <div 
-              className="input-field" 
-              style={{ 
-                padding: '8px 16px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                minWidth: '140px',
-                pointerEvents: 'none'
-              }}
-            >
-              {formatDateLabel(currentDateObj)}
-            </div>
-            <input 
-              type="date" 
-              value={date} 
-              onChange={(e) => setDate(e.target.value)} 
-              style={{ 
-                position: 'absolute', 
-                top: 0, 
-                left: 0, 
-                width: '100%', 
-                height: '100%', 
-                opacity: 0, 
-                cursor: 'pointer' 
-              }}
-            />
-          </div>
-
-          <Button 
-            variant="secondary" 
-            onClick={() => setDate(nextDate.toISOString().split('T')[0])}
-            className="date-nav-btn"
-          >
-            {formatDateLabel(nextDate)} →
-          </Button>
+        <div className="date-navigation" style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+          <MonthCalendar 
+            value={date} 
+            onChange={setDate} 
+            highlights={highlights} 
+            onMonthChange={handleMonthChange} 
+          />
         </div>
       </div>
 
@@ -370,7 +354,7 @@ const Booking = ({ user }) => {
 
                     if (block.isBookedByMe) {
                       bgColor = court.color || 'var(--clr-green)';
-                      borderColor = court.color || 'var(--clr-green)';
+                      borderColor = '#fbbf24'; // Borde doradito
                       cursor = 'pointer';
                     } else if (block.isBookedByOther) {
                       bgColor = court.color || 'var(--clr-green)'; // Use court color for taken too!
