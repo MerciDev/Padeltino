@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 
 const UrbanizationModel = ({ color = '#9ca3af' }) => {
   const mountRef = useRef(null);
@@ -62,10 +63,15 @@ const UrbanizationModel = ({ color = '#9ca3af' }) => {
     scene.add(sun);
 
     // ── Load Model ──
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('/draco/gltf/');
+
     const loader = new GLTFLoader();
+    loader.setDRACOLoader(dracoLoader);
     loader.setPath('/models/padel_court/');
+    
     loader.load(
-      'scene.gltf',
+      'scene_optimized.glb',
       (gltf) => {
         const model = gltf.scene;
         
