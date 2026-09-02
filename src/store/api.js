@@ -46,6 +46,21 @@ export const getUser = async (id) => {
   };
 };
 
+export const ensureUserExists = async (id, name, communityId, isAdmin) => {
+  const { error } = await supabase.from('users').upsert(
+    { 
+      id, 
+      name, 
+      community_id: communityId, 
+      is_admin: isAdmin 
+    },
+    { onConflict: 'id' }
+  );
+  if (error) {
+    console.error('Error ensuring user exists:', error);
+  }
+};
+
 export const updateUserPassword = async (userId, newPassword) => {
   const hashedPassword = await hashPassword(newPassword);
   

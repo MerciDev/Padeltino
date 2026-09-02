@@ -100,11 +100,6 @@ const Dashboard = ({ user }) => {
           <span className="stat-value">{upcoming.length}</span>
           <span className="stat-sub">partidas confirmadas</span>
         </div>
-        <div className="stat-card">
-          <span className="stat-label">Pistas</span>
-          <span className="stat-value">{totalCourts}</span>
-          <span className="stat-sub">disponibles en tu zona</span>
-        </div>
       </div>
 
       {/* Reservations */}
@@ -126,36 +121,65 @@ const Dashboard = ({ user }) => {
           </Link>
         </div>
       ) : (
-        <div className="reservations-grid">
-          {userReservations.map((res, i) => {
-            const community = communities.find(c => c.id === res.communityId);
-            const court = community?.courts.find(c => c.id === res.courtId);
-            const isPast = res.date < today;
-            
-            return (
-              <Link 
-                to="/book" 
-                state={{ date: res.date, courtId: res.courtId }} 
-                key={i} 
-                className="reservation-card" 
-                style={{ textDecoration: 'none', color: 'inherit', display: 'block', transition: 'transform 0.2s', cursor: 'pointer' }}
-                onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-                onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-              >
-                <div className="reservation-card-top">
-                  <div>
-                    <div className="reservation-court">{court?.name || 'Pista Eliminada'}</div>
-                    <div className="reservation-date">{formatDate(res.date)}</div>
+        <>
+          <div className="reservations-grid">
+            {upcoming.map((res, i) => {
+              const community = communities.find(c => c.id === res.communityId);
+              const court = community?.courts.find(c => c.id === res.courtId);
+              
+              return (
+                <Link 
+                  to="/book" 
+                  state={{ date: res.date, courtId: res.courtId }} 
+                  key={`upc-${i}`} 
+                  className="reservation-card" 
+                  style={{ textDecoration: 'none', color: 'inherit', display: 'block', transition: 'transform 0.2s', cursor: 'pointer' }}
+                  onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                  onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                  <div className="reservation-card-top">
+                    <div>
+                      <div className="reservation-court">{court?.name || 'Pista Eliminada'}</div>
+                      <div className="reservation-date">{formatDate(res.date)}</div>
+                    </div>
+                    <span className="badge badge-green">Próximo</span>
                   </div>
-                  <span className={`badge ${isPast ? 'badge-gray' : 'badge-green'}`}>
-                    {isPast ? 'Jugado' : 'Próximo'}
-                  </span>
-                </div>
-                <div className="reservation-slot font-mono">{res.timeSlot}</div>
-              </Link>
-            );
-          })}
-        </div>
+                  <div className="reservation-slot font-mono">{res.timeSlot}</div>
+                </Link>
+              );
+            })}
+          </div>
+          
+          {userReservations.length > upcoming.length && (
+            <details style={{ marginTop: '32px' }}>
+              <summary style={{ cursor: 'pointer', fontSize: '1rem', fontWeight: 600, color: 'var(--clr-text-muted)', marginBottom: '16px' }}>
+                Ver histórico de reservas pasadas
+              </summary>
+              <div className="reservations-grid" style={{ opacity: 0.7 }}>
+                {userReservations.filter(r => r.date < today).map((res, i) => {
+                  const community = communities.find(c => c.id === res.communityId);
+                  const court = community?.courts.find(c => c.id === res.courtId);
+                  
+                  return (
+                    <div
+                      key={`past-${i}`} 
+                      className="reservation-card" 
+                    >
+                      <div className="reservation-card-top">
+                        <div>
+                          <div className="reservation-court">{court?.name || 'Pista Eliminada'}</div>
+                          <div className="reservation-date">{formatDate(res.date)}</div>
+                        </div>
+                        <span className="badge badge-gray">Jugado</span>
+                      </div>
+                      <div className="reservation-slot font-mono">{res.timeSlot}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </details>
+          )}
+        </>
       )}
 
       {pwdModalOpen && (

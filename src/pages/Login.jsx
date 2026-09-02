@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import Input from '../components/Input';
 import Button from '../components/Button';
-import { getCommunities, getUser, hashPassword } from '../store/api';
+import { getCommunities, getUser, hashPassword, ensureUserExists } from '../store/api';
 
 const Login = ({ onLogin }) => {
   const { communityId } = useParams();
@@ -81,6 +81,9 @@ const Login = ({ onLogin }) => {
       id: username.toLowerCase(),
       communityId: isGlobalAdminLogin ? fallbackId : Number(communityId)
     };
+    
+    // Ensure the user exists in the DB so foreign keys for reservations work
+    await ensureUserExists(userData.id, userData.name, isGlobalAdminLogin ? null : userData.communityId, isAdmin);
     
     localStorage.setItem('padeltino_user', JSON.stringify(userData));
     onLogin(userData);
