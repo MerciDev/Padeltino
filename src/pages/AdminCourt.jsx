@@ -201,6 +201,20 @@ const AdminCourt = () => {
                   Determina con cuánta antelación exacta respecto al inicio del turno se puede reservar.
                 </p>
               </div>
+
+              <div style={{ marginBottom: '32px' }}>
+                <label className="form-label" style={{ display: 'block', marginBottom: '8px' }}>Límite de Reservas Diarias</label>
+                <Input 
+                  type="number"
+                  min="0"
+                  value={localCourt.config.maxReservationsPerDay || 0}
+                  onChange={(e) => handleUpdateField('maxReservationsPerDay', Number(e.target.value))}
+                  style={{ width: '100%' }}
+                />
+                <p style={{ color: 'var(--clr-text-muted)', fontSize: '0.85rem', marginTop: '8px' }}>
+                  Número máximo de franjas que un mismo usuario puede reservar al día en esta pista (0 = sin límite).
+                </p>
+              </div>
             </div>
 
             <div>

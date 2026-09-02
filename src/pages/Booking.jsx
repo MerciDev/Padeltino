@@ -121,6 +121,24 @@ const Booking = ({ user }) => {
   };
 
   const handleBookClick = (courtId, courtName, timeSlot) => {
+    const court = courts.find(c => c.id === courtId);
+    if (!court) return;
+
+    if (!user.isAdmin) {
+      const limit = court.config.maxReservationsPerDay || 0;
+      if (limit > 0) {
+        // Contar cuantas reservas tiene el usuario en ESTE court para la fecha seleccionada
+        const userReservationsForCourt = dailyReservations.filter(
+          r => r.courtId === courtId && r.userId === user.id
+        );
+        
+        if (userReservationsForCourt.length >= limit) {
+          alert(`Has alcanzado el límite diario de reservas en esta pista (${limit} franja${limit > 1 ? 's' : ''}).`);
+          return;
+        }
+      }
+    }
+
     setBookingModal({ isOpen: true, courtId, timeSlot, courtName });
   };
 
