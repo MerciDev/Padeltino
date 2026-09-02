@@ -109,26 +109,39 @@ export const logLogin = async (userId, userName, communityId, deviceInfo) => {
   return true;
 };
 
-export const getLoginLogs = async (communityId, limit = 50) => {
-  const { data, error } = await supabase
+export const getLoginLogs = async (communityId, date, page = 1, pageSize = 10) => {
+  const fromOffset = (page - 1) * pageSize;
+  const toOffset = fromOffset + pageSize - 1;
+
+  let query = supabase
     .from('login_logs')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('community_id', communityId)
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .range(fromOffset, toOffset);
+
+  if (date) {
+    const nextDay = new Date(new Date(date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    query = query.gte('created_at', date).lt('created_at', nextDay);
+  }
+
+  const { data, count, error } = await query;
     
   if (error) {
     console.error('Error fetching login logs:', error);
-    return [];
+    return { data: [], count: 0 };
   }
-  return data.map(log => ({
-    id: log.id,
-    userId: log.user_id,
-    userName: log.user_name,
-    communityId: log.community_id,
-    deviceInfo: log.device_info,
-    createdAt: log.created_at
-  }));
+  return {
+    count: count || 0,
+    data: data.map(log => ({
+      id: log.id,
+      userId: log.user_id,
+      userName: log.user_name,
+      communityId: log.community_id,
+      deviceInfo: log.device_info,
+      createdAt: log.created_at
+    }))
+  };
 };
 
 export const updateUserPassword = async (userId, newPassword) => {

@@ -21,7 +21,14 @@ const AdminCommunity = () => {
   const [community, setCommunity] = useState(null);
   const [dailyReservations, setDailyReservations] = useState([]);
   const [dailyUnlocks, setDailyUnlocks] = useState([]);
+  
+  // Login Logs State
   const [loginLogs, setLoginLogs] = useState([]);
+  const [logsDate, setLogsDate] = useState(getLocalDateString());
+  const [logsPage, setLogsPage] = useState(1);
+  const [totalLogs, setTotalLogs] = useState(0);
+  const logsPerPage = 10;
+  
   const [communityUsers, setCommunityUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -69,8 +76,6 @@ const AdminCommunity = () => {
     setLoading(true);
     const comms = await getCommunities();
     const found = comms.find(c => c.id === Number(id));
-    const logs = await getLoginLogs(Number(id));
-    setLoginLogs(logs);
     
     const users = await getCommunityUsers(Number(id));
     setCommunityUsers(users);
@@ -87,6 +92,15 @@ const AdminCommunity = () => {
   useEffect(() => {
     fetchCommunityData();
   }, [id, refresh]);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      const result = await getLoginLogs(Number(id), logsDate, logsPage, logsPerPage);
+      setLoginLogs(result.data);
+      setTotalLogs(result.count);
+    };
+    fetchLogs();
+  }, [id, logsDate, logsPage, refresh]);
 
   useEffect(() => {
     if (!community) return;
@@ -135,6 +149,7 @@ const AdminCommunity = () => {
     if (success) {
       // update local state
       setCommunityUsers(prev => prev.map(u => u.id === userId ? { ...u, isVerified: true } : u));
+      setRefresh(r => r + 1);
     }
   };
 
@@ -272,57 +287,97 @@ const AdminCommunity = () => {
           </div>
         </div>
 
-        {/* Registro de Accesos (Logs) */}
-        <div className="card" style={{ marginBottom: '40px' }}>
-          <div className="card-header" style={{ marginBottom: '24px' }}>
-            <div className="card-title">Registro de Accesos (Historial)</div>
-            <p className="card-subtitle">Últimos inicios de sesión registrados en esta urbanización.</p>
+        {/* LOGS */}
+        <div className="admin-card" style={{ overflowX: 'auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+            <div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--clr-text)', margin: 0 }}>Registro de Accesos</h3>
+              <p style={{ color: 'var(--clr-text-muted)', fontSize: '0.9rem', margin: '4px 0 0 0' }}>Historial de inicios de sesión en esta urbanización</p>
+            </div>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <Button variant="ghost" size="sm" onClick={() => setLogsDate('')}>Ver todos</Button>
+              <Button variant="secondary" size="sm" onClick={() => setRefresh(r => r + 1)}>
+                ↻ Refrescar
+              </Button>
+            </div>
           </div>
           
-          {loginLogs.length === 0 ? (
-            <p style={{ color: 'var(--clr-text-muted)', fontSize: '0.875rem', fontStyle: 'italic' }}>
-              No hay accesos registrados todavía.
-            </p>
-          ) : (
-            <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid var(--clr-border)', borderRadius: 'var(--radius-md)' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                <thead style={{ position: 'sticky', top: 0, background: 'var(--clr-surface-2)', zIndex: 1 }}>
-                  <tr>
-                    <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--clr-border)', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontWeight: 600 }}>Usuario</th>
-                    <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--clr-border)', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontWeight: 600 }}>Fecha y Hora</th>
-                    <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--clr-border)', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontWeight: 600 }}>Dispositivo</th>
-                    <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--clr-border)', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontWeight: 600, textAlign: 'right' }}>Acción</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loginLogs.map(log => {
-                    const userObj = communityUsers.find(u => u.id === log.userId);
-                    const isVerified = userObj ? userObj.isVerified : true; // if not found, assume verified or admin
+          <div style={{ marginBottom: '24px' }}>
+            <MonthCalendar 
+              value={logsDate || getLocalDateString()} 
+              onChange={(d) => { setLogsDate(d); setLogsPage(1); }} 
+              onMonthChange={() => {}} 
+            />
+          </div>
 
-                    return (
-                      <tr key={log.id} style={{ borderBottom: '1px solid var(--clr-border)' }}>
-                        <td style={{ padding: '12px 16px', fontSize: '0.9rem', fontWeight: 500 }}>
-                          {log.userName}
-                          {isVerified ? (
-                            <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: 'var(--clr-green)' }}>✓ Autorizado</span>
-                          ) : (
-                            <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: 'var(--clr-red)' }}>⚠ Pendiente</span>
-                          )}
-                        </td>
-                        <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontFamily: 'monospace' }}>
-                          {new Date(log.createdAt).toLocaleString()}
-                        </td>
-                        <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--clr-text-muted)' }}>{log.deviceInfo || 'Desconocido'}</td>
-                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                          {!isVerified && (
-                            <Button size="sm" onClick={() => handleVerifyUser(log.userId)}>Permitir</Button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <thead>
+              <tr>
+                <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--clr-border)', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontWeight: 600 }}>Usuario</th>
+                <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--clr-border)', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontWeight: 600 }}>Fecha y Hora</th>
+                <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--clr-border)', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontWeight: 600 }}>Dispositivo</th>
+                <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--clr-border)', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontWeight: 600, textAlign: 'right' }}>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loginLogs.map(log => {
+                const userObj = communityUsers.find(u => u.id === log.userId);
+                const isVerified = userObj ? userObj.isVerified : true;
+
+                return (
+                  <tr key={log.id} style={{ borderBottom: '1px solid var(--clr-border)' }}>
+                    <td style={{ padding: '12px 16px', fontSize: '0.9rem', fontWeight: 500 }}>
+                      {log.userName}
+                      {isVerified ? (
+                        <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: 'var(--clr-green)' }}>✓ Autorizado</span>
+                      ) : (
+                        <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: 'var(--clr-red)' }}>⚠ Pendiente</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontFamily: 'monospace' }}>
+                      {new Date(log.createdAt).toLocaleString()}
+                    </td>
+                    <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--clr-text-muted)' }}>{log.deviceInfo || 'Desconocido'}</td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                      {!isVerified && (
+                        <Button size="sm" onClick={() => handleVerifyUser(log.userId)}>Permitir</Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          
+          {loginLogs.length === 0 && (
+            <p style={{ textAlign: 'center', padding: '24px', color: 'var(--clr-text-muted)', fontSize: '0.9rem' }}>
+              No hay accesos registrados {logsDate ? 'en esta fecha' : 'aún'}.
+            </p>
+          )}
+          
+          {totalLogs > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--clr-border)' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--clr-text-muted)' }}>
+                Mostrando {(logsPage - 1) * logsPerPage + 1} - {Math.min(logsPage * logsPerPage, totalLogs)} de {totalLogs}
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  onClick={() => setLogsPage(p => Math.max(1, p - 1))}
+                  disabled={logsPage === 1}
+                >
+                  Anterior
+                </Button>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  onClick={() => setLogsPage(p => p + 1)}
+                  disabled={logsPage * logsPerPage >= totalLogs}
+                >
+                  Siguiente
+                </Button>
+              </div>
             </div>
           )}
         </div>
