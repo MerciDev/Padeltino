@@ -24,6 +24,7 @@ const AdminCommunity = () => {
   // Local state for explicit saving
   const [localName, setLocalName] = useState('');
   const [localAddress, setLocalAddress] = useState('');
+  const [localLoginConfig, setLocalLoginConfig] = useState({ portals: 0, floors: [], doors: [], exceptions: [] });
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const handleResMonthChange = async (year, month) => {
@@ -68,6 +69,7 @@ const AdminCommunity = () => {
       setCommunity(found);
       setLocalName(found.name);
       setLocalAddress(found.address || '');
+      setLocalLoginConfig(found.loginConfig || { portals: 1, floors: ['b', '1', '2'], doors: ['a', 'b'], exceptions: [] });
     }
     setLoading(false);
   };
@@ -108,13 +110,13 @@ const AdminCommunity = () => {
   }
 
   const handleSaveCommunity = async () => {
-    const success = await updateCommunityInfo(community.id, localName, localAddress);
+    const success = await updateCommunityInfo(community.id, localName, localAddress, localLoginConfig);
     if (success) {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
       setRefresh(r => r + 1);
     } else {
-      alert("Error al guardar urbanización");
+      alert("Error al guardar cambios de la urbanización");
     }
   };
 
@@ -188,6 +190,65 @@ const AdminCommunity = () => {
             />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <Button onClick={handleSaveCommunity} style={{ backgroundColor: 'var(--clr-green)' }}>Guardar Cambios</Button>
+            {saveSuccess && <span style={{ color: 'var(--clr-green)', fontSize: '0.9rem', fontWeight: 600 }}>¡Cambios guardados!</span>}
+          </div>
+        </div>
+
+        {/* Configuración Login Vecinos */}
+        <div className="card" style={{ marginBottom: '40px' }}>
+          <div className="card-header" style={{ marginBottom: '24px' }}>
+            <div className="card-title">Estructura de Acceso (Botonera)</div>
+            <p className="card-subtitle">Configura los portales y puertas para que los vecinos accedan sin contraseña.</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px', marginBottom: '24px' }}>
+            <Input 
+              type="number"
+              label="Número de Portales"
+              value={localLoginConfig.portals || 0}
+              onChange={(e) => setLocalLoginConfig(p => ({ ...p, portals: Number(e.target.value) }))}
+            />
+            <Input 
+              label="Plantas (separadas por coma)"
+              placeholder="b, 1, 2, 3"
+              value={localLoginConfig.floors?.join(', ') || ''}
+              onChange={(e) => setLocalLoginConfig(p => ({ ...p, floors: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
+            />
+            <Input 
+              label="Puertas (separadas por coma)"
+              placeholder="a, b, c"
+              value={localLoginConfig.doors?.join(', ') || ''}
+              onChange={(e) => setLocalLoginConfig(p => ({ ...p, doors: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
+            />
+          </div>
+          <div>
+            <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--clr-text-muted)', marginBottom: '8px' }}>Excepciones (ej. Portal 13, Puerta 2b)</h4>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              {(localLoginConfig.exceptions || []).map((exc, i) => (
+                <span key={i} className="badge badge-gray" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {exc}
+                  <button 
+                    onClick={() => setLocalLoginConfig(p => ({ ...p, exceptions: p.exceptions.filter((_, idx) => idx !== i) }))}
+                    style={{ background: 'none', border: 'none', color: 'var(--clr-red)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}
+                  >×</button>
+                </span>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <Input id="new-exc" placeholder="p13_2b" style={{ maxWidth: '200px' }} />
+              <Button 
+                variant="secondary" 
+                onClick={() => {
+                  const val = document.getElementById('new-exc').value.trim().toLowerCase();
+                  if (val && !localLoginConfig.exceptions?.includes(val)) {
+                    setLocalLoginConfig(p => ({ ...p, exceptions: [...(p.exceptions || []), val] }));
+                    document.getElementById('new-exc').value = '';
+                  }
+                }}
+              >Añadir excepción</Button>
+            </div>
+          </div>
+          <div style={{ marginTop: '32px', display: 'flex', alignItems: 'center', gap: '16px' }}>
             <Button onClick={handleSaveCommunity} style={{ backgroundColor: 'var(--clr-green)' }}>Guardar Cambios</Button>
             {saveSuccess && <span style={{ color: 'var(--clr-green)', fontSize: '0.9rem', fontWeight: 600 }}>¡Cambios guardados!</span>}
           </div>

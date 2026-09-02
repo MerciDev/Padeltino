@@ -16,6 +16,9 @@ CREATE TABLE communities (
 -- Relacionar users con communities ahora que communities existe
 ALTER TABLE users ADD CONSTRAINT fk_user_community FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE SET NULL;
 
+-- 2.1 Configuración de acceso visual para comunidades
+ALTER TABLE communities ADD COLUMN login_config jsonb DEFAULT '{"portals": 14, "floors": ["b", "1", "2"], "doors": ["a", "b"], "exceptions": []}'::jsonb;
+
 -- 3. Tabla de Pistas (Courts)
 CREATE TABLE courts (
   id integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,

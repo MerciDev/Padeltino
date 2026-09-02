@@ -22,6 +22,7 @@ export const getCommunities = async () => {
 
   return communities.map(c => ({
     ...c,
+    loginConfig: c.login_config,
     courts: courts.filter(court => court.community_id === c.id).map(court => ({
       id: court.id,
       name: court.name,
@@ -188,10 +189,13 @@ export const updateReservation = async (date, communityId, courtId, timeSlot, ne
   return true;
 };
 
-export const updateCommunityInfo = async (id, name, address) => {
+export const updateCommunityInfo = async (id, name, address, loginConfig) => {
+  const updateData = { name, address };
+  if (loginConfig !== undefined) updateData.login_config = loginConfig;
+  
   const { error } = await supabase
     .from('communities')
-    .update({ name, address })
+    .update(updateData)
     .eq('id', id);
   return !error;
 };
