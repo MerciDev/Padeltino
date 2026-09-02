@@ -10,6 +10,8 @@ import AdminCommunity from './pages/AdminCommunity';
 
 import AdminCourt from './pages/AdminCourt';
 
+const APP_VERSION = 'v1.4.0';
+
 function App() {
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('padeltino_user');
@@ -42,6 +44,10 @@ function App() {
           
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
+        
+        <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--clr-text-muted)', fontSize: '0.85rem' }}>
+          Padeltino {APP_VERSION}
+        </div>
       </div>
     </Router>
   );
