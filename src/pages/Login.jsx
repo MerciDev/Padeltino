@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import Input from '../components/Input';
 import Button from '../components/Button';
-import { getCommunities, getUser, hashPassword, ensureUserExists } from '../store/api';
+import { getCommunities, getUser, hashPassword, ensureUserExists, logLogin } from '../store/api';
+import { useAlert } from '../components/AlertContext';
 
 const Login = ({ onLogin }) => {
   const { communityId } = useParams();
@@ -12,7 +13,10 @@ const Login = ({ onLogin }) => {
   const [loading, setLoading] = useState(true);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [selectedPortal, setSelectedPortal] = useState(null);
+  const [pendingVisualUser, setPendingVisualUser] = useState(null);
+  const [visualPassword, setVisualPassword] = useState('');
   const navigate = useNavigate();
+  const { showAlert } = useAlert();
 
   const isGlobalAdminLogin = communityId === 'admin';
 
@@ -47,21 +51,81 @@ const Login = ({ onLogin }) => {
     
   };
 
+  const getDeviceInfo = () => {
+    const ua = navigator.userAgent;
+    let device = 'Desconocido';
+    let browser = '';
+
+    if (/iPhone|iPod/.test(ua)) device = 'iPhone';
+    else if (/iPad/.test(ua)) device = 'iPad';
+    else if (/Android/.test(ua)) device = 'Android';
+    else if (/Windows/.test(ua)) device = 'Windows';
+    else if (/Macintosh|Mac OS/.test(ua)) device = 'Mac';
+    else if (/Linux/.test(ua)) device = 'Linux';
+
+    if (/Safari/.test(ua) && !/Chrome/.test(ua)) browser = 'Safari';
+    else if (/Chrome/.test(ua)) browser = 'Chrome';
+    else if (/Firefox/.test(ua)) browser = 'Firefox';
+    else if (/Edge/.test(ua)) browser = 'Edge';
+
+    return browser ? `${device} / ${browser}` : device;
+  };
+
   const handleVisualLogin = async (portal, floor, door) => {
     const id = `p${portal}_${floor}${door}`.toLowerCase();
     const floorStr = floor.toLowerCase() === 'b' ? 'Bajo' : `${floor}º`;
     const displayName = `Portal ${portal}, ${floorStr} ${door.toUpperCase()}`;
 
     setLoading(true);
+    
+    // Check if user exists and has a password
+    const dbUser = await getUser(id);
+    if (dbUser && dbUser.password) {
+      setLoading(false);
+      setPendingVisualUser({ id, name: displayName, portal, floor, door });
+      return;
+    }
+
+    completeVisualLogin(id, displayName, dbUser);
+  };
+
+  const submitVisualPassword = async (e) => {
+    e.preventDefault();
+    if (!visualPassword.trim()) return;
+    
+    setLoading(true);
+    const dbUser = await getUser(pendingVisualUser.id);
+    const hashed = await hashPassword(visualPassword);
+    
+    if (dbUser.password !== hashed) {
+      showAlert("Contraseña incorrecta.", "Error de acceso");
+      setLoading(false);
+      return;
+    }
+    
+    completeVisualLogin(pendingVisualUser.id, pendingVisualUser.name, dbUser);
+  };
+
+  const completeVisualLogin = async (id, displayName, dbUser) => {
     const userData = { 
       name: displayName, 
       username: id, 
       isAdmin: false, 
       id: id,
-      communityId: Number(communityId)
+      communityId: Number(communityId),
+      isVerified: dbUser ? dbUser.isVerified : false,
+      hasPassword: dbUser ? !!dbUser.password : false
     };
     
-    await ensureUserExists(userData.id, userData.name, userData.communityId, false);
+    const ensureSuccess = await ensureUserExists(userData.id, userData.name, userData.communityId, false);
+    
+    // Log the login
+    const logSuccess = await logLogin(userData.id, userData.name, userData.communityId, getDeviceInfo());
+    
+    if (!logSuccess) {
+      console.error('Failed to insert login log');
+      showAlert("Error interno: No se pudo guardar el registro de acceso en Supabase. Revisa las políticas RLS.", "Aviso Técnico");
+    }
     
     localStorage.setItem('padeltino_user', JSON.stringify(userData));
     onLogin(userData);
@@ -72,40 +136,58 @@ const Login = ({ onLogin }) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) return;
 
-    if (username !== password && username.toLowerCase() !== 'admin') {
-      alert('Para cuentas de vecinos, el usuario y la contraseña deben ser iguales (ej. p1_bA).');
-      return;
-    }
-
-    const isAdmin = username.toLowerCase() === 'admin';
+    const id = username.toLowerCase();
+    const isAdmin = id === 'admin';
     const displayName = parseDisplayName(username);
-    
-    // Check admin password
+
+    setLoading(true);
+    const dbUser = await getUser(id);
+
+    // Verify Password
     if (isAdmin) {
-      setLoading(true);
-      const dbUser = await getUser('admin');
       const hashedInput = await hashPassword(password);
       if (dbUser && dbUser.password !== hashedInput) {
-        alert('Contraseña de administrador incorrecta.');
+        showAlert('Contraseña de administrador incorrecta.', 'Error de acceso');
         setLoading(false);
         return;
       }
-      setLoading(false);
+    } else {
+      // Neighbour text login
+      if (dbUser && dbUser.password) {
+        const hashedInput = await hashPassword(password);
+        if (dbUser.password !== hashedInput) {
+          showAlert('Contraseña incorrecta.', 'Error de acceso');
+          setLoading(false);
+          return;
+        }
+      } else {
+        // No password set in DB, fallback to initial requirement: username === password
+        if (username !== password) {
+          showAlert('Para cuentas nuevas, el usuario y la contraseña inicial deben ser iguales (ej. p1_bA).', 'Aviso');
+          setLoading(false);
+          return;
+        }
+      }
     }
-    
+
     // Asignar fallback community ID (ej 1) si es global admin para no romper rutas
     const fallbackId = community ? community.id : 1;
 
     const userData = { 
       name: displayName, 
-      username: username.toLowerCase(), 
+      username: id, 
       isAdmin, 
-      id: username.toLowerCase(),
-      communityId: isGlobalAdminLogin ? fallbackId : Number(communityId)
+      id: id,
+      communityId: isGlobalAdminLogin ? fallbackId : Number(communityId),
+      isVerified: dbUser ? dbUser.isVerified : false,
+      hasPassword: dbUser ? !!dbUser.password : false
     };
     
     // Ensure the user exists in the DB so foreign keys for reservations work
     await ensureUserExists(userData.id, userData.name, isGlobalAdminLogin ? null : userData.communityId, isAdmin);
+    
+    // Log the login
+    await logLogin(userData.id, userData.name, userData.communityId, getDeviceInfo());
     
     localStorage.setItem('padeltino_user', JSON.stringify(userData));
     onLogin(userData);
@@ -138,7 +220,26 @@ const Login = ({ onLogin }) => {
         {/* VISUAL LOGIN WIZARD */}
         {!isGlobalAdminLogin && community?.loginConfig?.portals > 0 && !showAdminLogin ? (
           <div className="login-visual-wizard">
-            {selectedPortal === null ? (
+            {pendingVisualUser ? (
+              <div className="door-selector">
+                <h3 style={{ textAlign: 'center', marginBottom: '8px', fontSize: '1.2rem', fontWeight: 600 }}>{pendingVisualUser.name}</h3>
+                <p style={{ textAlign: 'center', color: 'var(--clr-text-muted)', marginBottom: '24px', fontSize: '0.9rem' }}>Introduce tu contraseña para entrar.</p>
+                <form onSubmit={submitVisualPassword}>
+                  <Input 
+                    type="password" 
+                    placeholder="Contraseña" 
+                    value={visualPassword} 
+                    onChange={e => setVisualPassword(e.target.value)} 
+                    autoFocus
+                    required
+                  />
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                    <Button type="button" variant="ghost" onClick={() => { setPendingVisualUser(null); setVisualPassword(''); }}>Cancelar</Button>
+                    <Button type="submit" style={{ flex: 1 }}>Entrar</Button>
+                  </div>
+                </form>
+              </div>
+            ) : selectedPortal === null ? (
               <div className="portal-selector">
                 <h3 style={{ textAlign: 'center', marginBottom: '24px', fontSize: '1.2rem', fontWeight: 600 }}>Selecciona tu portal</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '12px' }}>
@@ -173,14 +274,16 @@ const Login = ({ onLogin }) => {
               </div>
             )}
 
-            <div style={{ textAlign: 'center', marginTop: '32px' }}>
-              <button 
-                onClick={() => setShowAdminLogin(true)}
-                style={{ background: 'none', border: 'none', color: 'var(--clr-text-muted)', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline' }}
-              >
-                Acceso Administrador
-              </button>
-            </div>
+            {!pendingVisualUser && (
+              <div style={{ textAlign: 'center', marginTop: '32px' }}>
+                <button 
+                  onClick={() => setShowAdminLogin(true)}
+                  style={{ background: 'none', border: 'none', color: 'var(--clr-text-muted)', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Acceso Administrador
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <form className="login-form" onSubmit={handleLogin}>

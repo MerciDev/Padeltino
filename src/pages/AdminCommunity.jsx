@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import { getCommunities, getReservationsByDate, removeReservation, updateReservation, updateCommunityInfo, addCourt, getReservationsByMonthRange } from '../store/api';
+import { getCommunities, getReservationsByDate, removeReservation, updateReservation, updateCommunityInfo, addCourt, getReservationsByMonthRange, getLoginLogs, getCommunityUsers, verifyUser } from '../store/api';
 import UrbanizationModel from '../components/UrbanizationModel';
 import MonthCalendar from '../components/MonthCalendar';
 import { getLocalDateString } from '../utils/date';
+import { useAlert } from '../components/AlertContext';
 
 const AdminCommunity = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { showAlert } = useAlert();
   const [refresh, setRefresh] = useState(0);
   const [date, setDate] = useState(getLocalDateString());
   const [unlockDate, setUnlockDate] = useState(getLocalDateString());
@@ -19,6 +21,8 @@ const AdminCommunity = () => {
   const [community, setCommunity] = useState(null);
   const [dailyReservations, setDailyReservations] = useState([]);
   const [dailyUnlocks, setDailyUnlocks] = useState([]);
+  const [loginLogs, setLoginLogs] = useState([]);
+  const [communityUsers, setCommunityUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Local state for explicit saving
@@ -65,6 +69,12 @@ const AdminCommunity = () => {
     setLoading(true);
     const comms = await getCommunities();
     const found = comms.find(c => c.id === Number(id));
+    const logs = await getLoginLogs(Number(id));
+    setLoginLogs(logs);
+    
+    const users = await getCommunityUsers(Number(id));
+    setCommunityUsers(users);
+
     if (found) {
       setCommunity(found);
       setLocalName(found.name);
@@ -116,7 +126,15 @@ const AdminCommunity = () => {
       setTimeout(() => setSaveSuccess(false), 3000);
       setRefresh(r => r + 1);
     } else {
-      alert("Error al guardar cambios de la urbanización");
+      showAlert("Error al guardar cambios de la urbanización", "Error");
+    }
+  };
+
+  const handleVerifyUser = async (userId) => {
+    const success = await verifyUser(userId);
+    if (success) {
+      // update local state
+      setCommunityUsers(prev => prev.map(u => u.id === userId ? { ...u, isVerified: true } : u));
     }
   };
 
@@ -252,6 +270,61 @@ const AdminCommunity = () => {
             <Button onClick={handleSaveCommunity} style={{ backgroundColor: 'var(--clr-green)' }}>Guardar Cambios</Button>
             {saveSuccess && <span style={{ color: 'var(--clr-green)', fontSize: '0.9rem', fontWeight: 600 }}>¡Cambios guardados!</span>}
           </div>
+        </div>
+
+        {/* Registro de Accesos (Logs) */}
+        <div className="card" style={{ marginBottom: '40px' }}>
+          <div className="card-header" style={{ marginBottom: '24px' }}>
+            <div className="card-title">Registro de Accesos (Historial)</div>
+            <p className="card-subtitle">Últimos inicios de sesión registrados en esta urbanización.</p>
+          </div>
+          
+          {loginLogs.length === 0 ? (
+            <p style={{ color: 'var(--clr-text-muted)', fontSize: '0.875rem', fontStyle: 'italic' }}>
+              No hay accesos registrados todavía.
+            </p>
+          ) : (
+            <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid var(--clr-border)', borderRadius: 'var(--radius-md)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead style={{ position: 'sticky', top: 0, background: 'var(--clr-surface-2)', zIndex: 1 }}>
+                  <tr>
+                    <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--clr-border)', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontWeight: 600 }}>Usuario</th>
+                    <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--clr-border)', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontWeight: 600 }}>Fecha y Hora</th>
+                    <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--clr-border)', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontWeight: 600 }}>Dispositivo</th>
+                    <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--clr-border)', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontWeight: 600, textAlign: 'right' }}>Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loginLogs.map(log => {
+                    const userObj = communityUsers.find(u => u.id === log.userId);
+                    const isVerified = userObj ? userObj.isVerified : true; // if not found, assume verified or admin
+
+                    return (
+                      <tr key={log.id} style={{ borderBottom: '1px solid var(--clr-border)' }}>
+                        <td style={{ padding: '12px 16px', fontSize: '0.9rem', fontWeight: 500 }}>
+                          {log.userName}
+                          {isVerified ? (
+                            <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: 'var(--clr-green)' }}>✓ Autorizado</span>
+                          ) : (
+                            <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: 'var(--clr-red)' }}>⚠ Pendiente</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontFamily: 'monospace' }}>
+                          {new Date(log.createdAt).toLocaleString()}
+                        </td>
+                        <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--clr-text-muted)' }}>{log.deviceInfo || 'Desconocido'}</td>
+                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                          {!isVerified && (
+                            <Button size="sm" onClick={() => handleVerifyUser(log.userId)}>Permitir</Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Visor de Reservas y Desbloqueos en Grid */}

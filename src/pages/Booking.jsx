@@ -5,10 +5,12 @@ import Button from '../components/Button';
 import UrbanizationModel from '../components/UrbanizationModel';
 import MonthCalendar from '../components/MonthCalendar';
 import { getLocalDateString } from '../utils/date';
+import { useAlert } from '../components/AlertContext';
 
 const Booking = ({ user }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { showAlert } = useAlert();
 
   const [date, setDate] = useState(location.state?.date || getLocalDateString());
   const [dailyReservations, setDailyReservations] = useState([]);
@@ -16,6 +18,7 @@ const Booking = ({ user }) => {
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCourt, setSelectedCourt] = useState(null);
+  const [refresh, setRefresh] = useState(0);
 
   const handleMonthChange = async (year, month) => {
     const start = `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
@@ -55,6 +58,13 @@ const Booking = ({ user }) => {
   const [infoModal, setInfoModal] = useState({ isOpen: false, courtId: null, courtName: '', timeSlot: null, bookedByName: '', isOwner: false });
 
   useEffect(() => {
+    // Si no está verificado, bloquear (no debería poder entrar aquí, pero por si acaso con la URL directa)
+    if (user && !user.isVerified && !user.isAdmin) {
+      showAlert("No puedes reservar hasta que el administrador verifique tu cuenta.", "Acceso Denegado");
+      navigate('/dashboard');
+      return;
+    }
+
     const fetchData = async () => {
       setLoading(true);
       const comms = await getCommunities();
@@ -64,7 +74,7 @@ const Booking = ({ user }) => {
       setLoading(false);
     };
     fetchData();
-  }, [date, user.communityId]);
+  }, [date, user.communityId, refresh]);
 
   const userCommunity = communities.find(c => c.id === user.communityId) || communities[0];
   const courts = userCommunity?.courts || [];
@@ -133,7 +143,7 @@ const Booking = ({ user }) => {
         );
         
         if (userReservationsForCourt.length >= limit) {
-          alert(`Has alcanzado el límite diario de reservas en esta pista (${limit} franja${limit > 1 ? 's' : ''}).`);
+          showAlert(`Has alcanzado el límite diario de reservas en esta pista (${limit} franja${limit > 1 ? 's' : ''}).`, 'Límite alcanzado');
           return;
         }
       }
@@ -151,10 +161,9 @@ const Booking = ({ user }) => {
       action: async () => {
         const success = await removeReservation(date, userCommunity.id, courtId, timeSlot);
         if (success) {
-          const freshRes = await getReservationsByDate(date);
-          setDailyReservations(freshRes.filter(r => r.communityId === userCommunity.id));
+          setRefresh(r => r + 1);
         } else {
-          alert('Error al cancelar la reserva.');
+          showAlert('Error al cancelar la reserva.', 'Error');
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
         setInfoModal(prev => ({ ...prev, isOpen: false }));
@@ -170,11 +179,10 @@ const Booking = ({ user }) => {
     const { courtId, timeSlot } = bookingModal;
     const success = await addReservation(date, userCommunity.id, courtId, timeSlot, user.id, user.name);
     if (success) {
-      const freshRes = await getReservationsByDate(date);
-      setDailyReservations(freshRes.filter(r => r.communityId === userCommunity.id));
+      setRefresh(r => r + 1);
       setBookingModal({ isOpen: false, courtId: null, timeSlot: null, courtName: '' });
     } else {
-      alert('Este tramo ya está reservado o ha habido un error.');
+      showAlert('Este tramo ya está reservado o ha habido un error.', 'Error de reserva');
       setBookingModal({ isOpen: false, courtId: null, timeSlot: null, courtName: '' });
     }
   };
@@ -431,8 +439,7 @@ const Booking = ({ user }) => {
                                   action: async () => {
                                     const success = await addReservation(date, userCommunity.id, court.id, block.timeSlot, 'SYSTEM_UNLOCKED', 'Desbloqueo Manual');
                                     if (success) {
-                                      const freshRes = await getReservationsByDate(date);
-                                      setDailyReservations(freshRes.filter(r => r.communityId === userCommunity.id));
+                                      setRefresh(r => r + 1);
                                     }
                                     setConfirmModal(prev => ({ ...prev, isOpen: false }));
                                   }

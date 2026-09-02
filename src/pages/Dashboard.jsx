@@ -4,6 +4,7 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import { getUserReservations, getAllReservations, getCommunities, updateUserPassword } from '../store/api';
 import { getLocalDateString } from '../utils/date';
+import { useAlert } from '../components/AlertContext';
 const formatDate = (isoStr) => {
   if (!isoStr) return '';
   const [y, m, d] = isoStr.split('-');
@@ -18,6 +19,7 @@ const Dashboard = ({ user }) => {
   const [newPwd, setNewPwd] = useState('');
   const [newPwdConfirm, setNewPwdConfirm] = useState('');
   const [pwdError, setPwdError] = useState('');
+  const { showAlert } = useAlert();
 
   const handlePasswordChange = async () => {
     if (newPwd !== newPwdConfirm) {
@@ -31,7 +33,7 @@ const Dashboard = ({ user }) => {
     
     const success = await updateUserPassword(user.id, newPwd);
     if (success) {
-      alert('Contraseña actualizada correctamente.');
+      showAlert('Contraseña actualizada correctamente.', 'Éxito');
       setPwdModalOpen(false);
       setNewPwd('');
       setNewPwdConfirm('');
@@ -52,11 +54,16 @@ const Dashboard = ({ user }) => {
       
       reservations.sort((a, b) => new Date(a.date) - new Date(b.date));
       setUserReservations(reservations);
+      
+      if (user.isVerified && !user.hasPassword && !user.isAdmin) {
+        setPwdModalOpen(true);
+      }
+      
       setLoading(false);
     };
     
     fetchData();
-  }, [user.id, user.isAdmin]);
+  }, [user.id, user.isAdmin, user.isVerified, user.hasPassword]);
   
   const today = getLocalDateString();
   const upcoming = userReservations.filter(r => r.date >= today);
@@ -79,14 +86,28 @@ const Dashboard = ({ user }) => {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          {user.isAdmin && (
+          {(user.isAdmin || (user.isVerified && user.hasPassword)) && (
             <Button variant="secondary" onClick={() => setPwdModalOpen(true)}>Seguridad</Button>
           )}
-          <Link to="/book">
-            <Button>+ Nueva reserva</Button>
-          </Link>
+          {user.isVerified ? (
+            <Link to="/book">
+              <Button>+ Nueva reserva</Button>
+            </Link>
+          ) : (
+            <Button variant="secondary" disabled>Bloqueado</Button>
+          )}
         </div>
       </div>
+
+      {!user.isVerified && !user.isAdmin && (
+        <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--clr-red)', borderRadius: 'var(--radius-md)', padding: '16px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ color: 'var(--clr-red)', fontSize: '1.5rem' }}>⚠️</div>
+          <div>
+            <h3 style={{ color: 'var(--clr-red)', fontWeight: 600, fontSize: '1rem', margin: 0 }}>Cuenta pendiente de verificación</h3>
+            <p style={{ color: 'var(--clr-text-muted)', fontSize: '0.9rem', margin: '4px 0 0 0' }}>No puedes reservar pistas hasta que el administrador autorice tu acceso.</p>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="stats-grid">
@@ -183,32 +204,48 @@ const Dashboard = ({ user }) => {
       )}
 
       {pwdModalOpen && (
-        <div className="modal-overlay" onClick={() => setPwdModalOpen(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h3 className="modal-title">Cambiar Contraseña</h3>
-            <div className="modal-body">
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="modal-content">
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '16px', color: 'var(--clr-text)' }}>
+              {(!user.hasPassword && !user.isAdmin) ? '🔐 Establece tu contraseña' : 'Cambiar Contraseña'}
+            </h2>
+            {(!user.hasPassword && !user.isAdmin) && (
               <p style={{ color: 'var(--clr-text-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>
-                Establece una nueva contraseña para tu cuenta de administrador.
+                Tu cuenta ha sido verificada. Debes establecer una contraseña ahora para proteger el acceso a tu portal.
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <Input 
-                  type="password"
-                  label="Nueva Contraseña"
-                  value={newPwd}
-                  onChange={(e) => setNewPwd(e.target.value)}
-                />
-                <Input 
-                  type="password"
-                  label="Confirmar Contraseña"
-                  value={newPwdConfirm}
-                  onChange={(e) => setNewPwdConfirm(e.target.value)}
-                />
-                {pwdError && <p style={{ color: '#ef4444', fontSize: '0.85rem' }}>{pwdError}</p>}
-              </div>
-            </div>
-            <div className="modal-actions">
-              <Button variant="secondary" onClick={() => setPwdModalOpen(false)}>Cancelar</Button>
-              <Button style={{ backgroundColor: 'var(--clr-green)' }} onClick={handlePasswordChange}>Guardar</Button>
+            )}
+            <Input 
+              type="password" 
+              label="Nueva contraseña" 
+              value={newPwd} 
+              onChange={e => setNewPwd(e.target.value)} 
+              placeholder="Min. 4 caracteres"
+            />
+            <Input 
+              type="password" 
+              label="Repetir nueva contraseña" 
+              value={newPwdConfirm} 
+              onChange={e => setNewPwdConfirm(e.target.value)} 
+            />
+            {pwdError && <p style={{ color: 'var(--clr-red)', fontSize: '0.85rem', marginBottom: '16px' }}>{pwdError}</p>}
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              {(user.hasPassword || user.isAdmin) && (
+                <Button variant="ghost" onClick={() => { setPwdModalOpen(false); setPwdError(''); setNewPwd(''); setNewPwdConfirm(''); }}>Cancelar</Button>
+              )}
+              <Button onClick={async () => {
+                await handlePasswordChange();
+                // If it succeeds, we should update the local storage user object
+                if (newPwd === newPwdConfirm && newPwd.length >= 4) {
+                  const u = JSON.parse(localStorage.getItem('padeltino_user'));
+                  if (u) {
+                    u.hasPassword = true;
+                    localStorage.setItem('padeltino_user', JSON.stringify(u));
+                    // the page will need a reload to reflect user state, or we just let it be since they have it now.
+                    window.location.reload();
+                  }
+                }
+              }}>Guardar Contraseña</Button>
             </div>
           </div>
         </div>

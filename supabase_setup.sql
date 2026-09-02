@@ -3,7 +3,8 @@ CREATE TABLE users (
   id text PRIMARY KEY,
   name text NOT NULL,
   community_id integer,
-  is_admin boolean DEFAULT false
+  is_admin boolean DEFAULT false,
+  is_verified boolean DEFAULT false
 );
 
 -- 2. Tabla de Urbanizaciones
@@ -18,6 +19,16 @@ ALTER TABLE users ADD CONSTRAINT fk_user_community FOREIGN KEY (community_id) RE
 
 -- 2.1 Configuración de acceso visual para comunidades
 ALTER TABLE communities ADD COLUMN login_config jsonb DEFAULT '{"portals": 14, "floors": ["b", "1", "2"], "doors": ["a", "b"], "exceptions": []}'::jsonb;
+
+-- 2.2 Tabla de Logs de Acceso
+CREATE TABLE login_logs (
+  id integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  user_id text NOT NULL,
+  user_name text NOT NULL,
+  community_id integer REFERENCES communities(id) ON DELETE CASCADE,
+  device_info text,
+  created_at timestamp with time zone DEFAULT now()
+);
 
 -- 3. Tabla de Pistas (Courts)
 CREATE TABLE courts (
@@ -52,6 +63,10 @@ INSERT INTO users (id, name, community_id, is_admin) VALUES
 ('p1_ba', 'Bajo A', 1, false),
 ('p1_1a', '1º A', 1, false);
 
--- 5. Añadir columna de password cifrada para admin (y futuros usuarios si se desea)
--- El hash corresponde a la palabra 'admin' cifrada en SHA-256
-ALTER TABLE users ADD COLUMN password text DEFAULT '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';
+-- 5. Añadir columna de password cifrada
+ALTER TABLE users ADD COLUMN password text;
+
+-- Insertar la password para los usuarios por defecto (en especial admin)
+UPDATE users SET password = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' WHERE id = 'admin';
+-- Poner is_verified = true para los usuarios por defecto
+UPDATE users SET is_verified = true;

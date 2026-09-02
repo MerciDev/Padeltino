@@ -3,11 +3,13 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import { getCommunities, updateCourtConfig, removeCourt } from '../store/api';
+import { useAlert } from '../components/AlertContext';
 import UrbanizationModel from '../components/UrbanizationModel';
 
 const AdminCourt = () => {
   const { commId, courtId } = useParams();
   const navigate = useNavigate();
+  const { showAlert } = useAlert();
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [loading, setLoading] = useState(true);
   const [localCourt, setLocalCourt] = useState(null);
@@ -89,7 +91,7 @@ const AdminCourt = () => {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } else {
-      alert("Error al guardar pista");
+      showAlert("Error al guardar pista", "Error");
     }
   };
 

@@ -33,9 +33,9 @@ export const getCommunities = async () => {
 };
 
 export const getUser = async (id) => {
-  const { data, error } = await supabase.from('users').select('*').eq('id', id).single();
-  if (error) {
-    console.error('Error fetching user:', error);
+  const { data, error } = await supabase.from('users').select('*').eq('id', id).maybeSingle();
+  if (error || !data) {
+    if (error) console.error('Error fetching user:', error);
     return null;
   }
   return {
@@ -43,23 +43,92 @@ export const getUser = async (id) => {
     name: data.name,
     communityId: data.community_id,
     isAdmin: data.is_admin,
-    password: data.password // Return password for verification
+    password: data.password, // Return password for verification
+    isVerified: data.is_verified
   };
 };
 
 export const ensureUserExists = async (id, name, communityId, isAdmin) => {
-  const { error } = await supabase.from('users').upsert(
-    { 
-      id, 
-      name, 
-      community_id: communityId, 
-      is_admin: isAdmin 
-    },
-    { onConflict: 'id' }
-  );
+  // First check if user exists
+  const { data } = await supabase.from('users').select('id').eq('id', id).maybeSingle();
+  if (data) return; // Already exists, do nothing
+
+  // If not, create them unverified
+  const { error } = await supabase.from('users').insert([{ 
+    id, 
+    name, 
+    community_id: communityId, 
+    is_admin: isAdmin,
+    is_verified: false 
+  }]);
+  
   if (error) {
     console.error('Error ensuring user exists:', error);
   }
+};
+
+export const verifyUser = async (userId) => {
+  const { error } = await supabase
+    .from('users')
+    .update({ is_verified: true })
+    .eq('id', userId);
+  return !error;
+};
+
+export const getCommunityUsers = async (communityId) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('community_id', communityId);
+    
+  if (error) {
+    console.error('Error fetching community users:', error);
+    return [];
+  }
+  return data.map(user => ({
+    id: user.id,
+    name: user.name,
+    isVerified: user.is_verified,
+    hasPassword: !!user.password
+  }));
+};
+
+export const logLogin = async (userId, userName, communityId, deviceInfo) => {
+  const { error } = await supabase.from('login_logs').insert([
+    {
+      user_id: userId,
+      user_name: userName,
+      community_id: communityId,
+      device_info: deviceInfo
+    }
+  ]);
+  if (error) {
+    console.error('Error logging login:', error);
+    return false;
+  }
+  return true;
+};
+
+export const getLoginLogs = async (communityId, limit = 50) => {
+  const { data, error } = await supabase
+    .from('login_logs')
+    .select('*')
+    .eq('community_id', communityId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+    
+  if (error) {
+    console.error('Error fetching login logs:', error);
+    return [];
+  }
+  return data.map(log => ({
+    id: log.id,
+    userId: log.user_id,
+    userName: log.user_name,
+    communityId: log.community_id,
+    deviceInfo: log.device_info,
+    createdAt: log.created_at
+  }));
 };
 
 export const updateUserPassword = async (userId, newPassword) => {
