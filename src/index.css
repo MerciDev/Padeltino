@@ -72,6 +72,9 @@ input { font-family: var(--font); }
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 .page-container {
@@ -79,6 +82,7 @@ input { font-family: var(--font); }
   margin: 0 auto;
   padding: 40px 24px 120px; /* Incrementado para móviles */
   width: 100%;
+  min-width: 0; /* Flexbox trick to prevent content overflow */
 }
 
 .page-header {
@@ -238,6 +242,11 @@ input { font-family: var(--font); }
     visibility: visible;
     transform: translateY(0);
     pointer-events: auto;
+  }
+
+  /* Ensure body doesn't scroll when menu is open */
+  body:has(.navbar-menu.is-open) {
+    overflow: hidden;
   }
 
   .navbar-links {
