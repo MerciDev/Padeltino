@@ -267,17 +267,24 @@ const Booking = ({ user }) => {
           else if (court.config?.advanceBookingLimit !== undefined && court.config.advanceBookingLimit !== null && !isForceUnlocked) {
             const limitHours = court.config.advanceBookingLimit;
             
+            const todayMidnight = new Date();
+            todayMidnight.setHours(0, 0, 0, 0);
+            
+            const slotMidnight = new Date(slotDate);
+            slotMidnight.setHours(0, 0, 0, 0);
+            
+            const diffDays = Math.round((slotMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
+            
             if (limitHours === 0) {
-              const today = new Date();
-              if (slotDate.getFullYear() !== today.getFullYear() || slotDate.getMonth() !== today.getMonth() || slotDate.getDate() !== today.getDate()) {
+              if (diffDays > 0) {
                 isLockedByTime = true;
                 lockReason = 'Sólo Mismo Día';
               }
             } else {
-              const diffHours = (slotDate.getTime() - Date.now()) / (1000 * 60 * 60);
-              if (diffHours > limitHours) {
+              const allowedDays = Math.floor(limitHours / 24);
+              if (diffDays > allowedDays) {
                 isLockedByTime = true;
-                lockReason = `En ${limitHours}h`;
+                lockReason = `En ${allowedDays} día${allowedDays !== 1 ? 's' : ''}`;
               }
             }
           }
