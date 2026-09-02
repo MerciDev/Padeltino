@@ -36,7 +36,7 @@ function App() {
             {/* Login with specific community */}
             <Route path="/login/:communityId" element={!user ? <Login onLogin={setUser} /> : <Navigate to="/dashboard" />} />
             
-            <Route path="/dashboard" element={user ? <Dashboard user={user} /> : <Navigate to="/" />} />
+            <Route path="/dashboard" element={user ? <Dashboard user={user} setUser={setUser} /> : <Navigate to="/" />} />
             <Route path="/book" element={user ? <Booking user={user} /> : <Navigate to="/" />} />
             
             <Route path="/admin" element={user?.isAdmin ? <Admin /> : <Navigate to={user ? '/dashboard' : '/'} />} />

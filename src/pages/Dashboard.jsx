@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import { getUserReservations, getAllReservations, getCommunities, updateUserPassword } from '../store/api';
+import { getUserReservations, getAllReservations, getCommunities, updateUserPassword, getUser } from '../store/api';
 import { getLocalDateString } from '../utils/date';
+import { getLocalDeviceId } from '../utils/device';
 import { useAlert } from '../components/AlertContext';
 const formatDate = (isoStr) => {
   if (!isoStr) return '';
@@ -11,7 +12,7 @@ const formatDate = (isoStr) => {
   return `${d}/${m}/${y}`;
 };
 
-const Dashboard = ({ user }) => {
+const Dashboard = ({ user, setUser }) => {
   const [userReservations, setUserReservations] = useState([]);
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +65,34 @@ const Dashboard = ({ user }) => {
     
     fetchData();
   }, [user.id, user.isAdmin, user.isVerified, user.hasPassword]);
+
+  // Polling para detectar cuando el administrador verifica la cuenta
+  useEffect(() => {
+    if (user.isVerified || user.isAdmin) return;
+    
+    const interval = setInterval(async () => {
+      const dbUser = await getUser(user.id);
+      if (dbUser && dbUser.isVerified) {
+        // El administrador lo acaba de verificar.
+        // Comprobar si el dispositivo autorizado coincide con el dispositivo actual
+        const localDevice = getLocalDeviceId();
+        
+        // Actualizar el estado global del usuario (y el localStorage)
+        const updatedUser = { ...user, isVerified: true, hasPassword: !!dbUser.password };
+        localStorage.setItem('padeltino_user', JSON.stringify(updatedUser));
+        if (setUser) setUser(updatedUser);
+        
+        // Si el dispositivo coincide o si no hay dispositivo guardado (fallback por si acaso), le dejamos cambiar pwd
+        if (!dbUser.allowed_device_id || dbUser.allowed_device_id === localDevice) {
+          if (!dbUser.password) {
+            setPwdModalOpen(true);
+          }
+        }
+      }
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [user, setUser]);
   
   const today = getLocalDateString();
   const upcoming = userReservations.filter(r => r.date >= today);

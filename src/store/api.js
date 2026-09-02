@@ -67,10 +67,15 @@ export const ensureUserExists = async (id, name, communityId, isAdmin) => {
   }
 };
 
-export const verifyUser = async (userId) => {
+export const verifyUser = async (userId, allowedDeviceId = null) => {
+  const updateData = { is_verified: true };
+  if (allowedDeviceId) {
+    updateData.allowed_device_id = allowedDeviceId;
+  }
+  
   const { error } = await supabase
     .from('users')
-    .update({ is_verified: true })
+    .update(updateData)
     .eq('id', userId);
   return !error;
 };
@@ -93,13 +98,15 @@ export const getCommunityUsers = async (communityId) => {
   }));
 };
 
-export const logLogin = async (userId, userName, communityId, deviceInfo) => {
+export const logLogin = async (userId, userName, communityId, deviceInfo, ipAddress, deviceId) => {
   const { error } = await supabase.from('login_logs').insert([
     {
       user_id: userId,
       user_name: userName,
       community_id: communityId,
-      device_info: deviceInfo
+      device_info: deviceInfo,
+      ip_address: ipAddress,
+      device_id: deviceId
     }
   ]);
   if (error) {
@@ -139,6 +146,8 @@ export const getLoginLogs = async (communityId, date, page = 1, pageSize = 10) =
       userName: log.user_name,
       communityId: log.community_id,
       deviceInfo: log.device_info,
+      ipAddress: log.ip_address,
+      deviceId: log.device_id,
       createdAt: log.created_at
     }))
   };

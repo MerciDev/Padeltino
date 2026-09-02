@@ -184,8 +184,8 @@ const AdminCommunity = () => {
     }
   };
 
-  const handleVerifyUser = async (userId) => {
-    const success = await verifyUser(userId);
+  const handleVerifyUser = async (userId, deviceId) => {
+    const success = await verifyUser(userId, deviceId);
     if (success) {
       // update local state
       setCommunityUsers(prev => prev.map(u => u.id === userId ? { ...u, isVerified: true } : u));
@@ -378,10 +378,13 @@ const AdminCommunity = () => {
                     <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--clr-text-muted)', fontFamily: 'monospace' }}>
                       {new Date(log.createdAt).toLocaleString()}
                     </td>
-                    <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--clr-text-muted)' }}>{log.deviceInfo || 'Desconocido'}</td>
+                    <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--clr-text-muted)' }}>
+                      {log.deviceInfo || 'Desconocido'}
+                      {log.ipAddress && <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '2px' }}>IP: {log.ipAddress}</div>}
+                    </td>
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                       {!isVerified && (
-                        <Button size="sm" onClick={() => handleVerifyUser(log.userId)}>Permitir</Button>
+                        <Button size="sm" onClick={() => handleVerifyUser(log.userId, log.deviceId)}>Permitir</Button>
                       )}
                     </td>
                   </tr>

@@ -66,6 +66,14 @@ INSERT INTO users (id, name, community_id, is_admin) VALUES
 -- 5. Añadir columna de password cifrada
 ALTER TABLE users ADD COLUMN password text;
 
+-- 3. Quitar contraseña por defecto (para obligar a validación de is_verified)
+ALTER TABLE users ALTER COLUMN password DROP DEFAULT;
+
+-- 4. Actualizar tabla login_logs y users para bloqueo de dispositivos
+ALTER TABLE login_logs ADD COLUMN ip_address text;
+ALTER TABLE login_logs ADD COLUMN device_id text;
+ALTER TABLE users ADD COLUMN allowed_device_id text;
+
 -- Insertar la password para los usuarios por defecto (en especial admin)
 UPDATE users SET password = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' WHERE id = 'admin';
 -- Poner is_verified = true para los usuarios por defecto

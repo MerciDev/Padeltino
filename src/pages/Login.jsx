@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import { getCommunities, getUser, hashPassword, ensureUserExists, logLogin } from '../store/api';
+import { getClientIp, getLocalDeviceId } from '../utils/device';
 import { useAlert } from '../components/AlertContext';
 
 const Login = ({ onLogin }) => {
@@ -119,8 +120,11 @@ const Login = ({ onLogin }) => {
     
     const ensureSuccess = await ensureUserExists(userData.id, userData.name, userData.communityId, false);
     
+    const ipAddress = await getClientIp();
+    const deviceId = getLocalDeviceId();
+
     // Log the login
-    const logSuccess = await logLogin(userData.id, userData.name, userData.communityId, getDeviceInfo());
+    const logSuccess = await logLogin(userData.id, userData.name, userData.communityId, getDeviceInfo(), ipAddress, deviceId);
     
     if (!logSuccess) {
       console.error('Failed to insert login log');
@@ -186,8 +190,11 @@ const Login = ({ onLogin }) => {
     // Ensure the user exists in the DB so foreign keys for reservations work
     await ensureUserExists(userData.id, userData.name, isGlobalAdminLogin ? null : userData.communityId, isAdmin);
     
+    const ipAddress = await getClientIp();
+    const deviceId = getLocalDeviceId();
+
     // Log the login
-    await logLogin(userData.id, userData.name, userData.communityId, getDeviceInfo());
+    await logLogin(userData.id, userData.name, userData.communityId, getDeviceInfo(), ipAddress, deviceId);
     
     localStorage.setItem('padeltino_user', JSON.stringify(userData));
     onLogin(userData);
