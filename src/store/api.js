@@ -144,6 +144,21 @@ export const getLoginLogs = async (communityId, date, page = 1, pageSize = 10) =
   };
 };
 
+export const getLoginLogsByMonthRange = async (communityId, start, end) => {
+  const { data, error } = await supabase
+    .from('login_logs')
+    .select('created_at, user_id')
+    .eq('community_id', communityId)
+    .gte('created_at', start)
+    .lt('created_at', end);
+    
+  if (error) {
+    console.error('Error fetching month logs:', error);
+    return [];
+  }
+  return data;
+};
+
 export const updateUserPassword = async (userId, newPassword) => {
   const hashedPassword = await hashPassword(newPassword);
   

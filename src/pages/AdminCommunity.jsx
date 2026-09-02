@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import { getCommunities, getReservationsByDate, removeReservation, updateReservation, updateCommunityInfo, addCourt, getReservationsByMonthRange, getLoginLogs, getCommunityUsers, verifyUser } from '../store/api';
+import { getCommunities, getReservationsByDate, removeReservation, updateReservation, updateCommunityInfo, addCourt, getReservationsByMonthRange, getLoginLogs, getCommunityUsers, verifyUser, getLoginLogsByMonthRange } from '../store/api';
 import UrbanizationModel from '../components/UrbanizationModel';
 import MonthCalendar from '../components/MonthCalendar';
 import { getLocalDateString } from '../utils/date';
@@ -27,6 +27,7 @@ const AdminCommunity = () => {
   const [logsDate, setLogsDate] = useState(getLocalDateString());
   const [logsPage, setLogsPage] = useState(1);
   const [totalLogs, setTotalLogs] = useState(0);
+  const [logsHighlights, setLogsHighlights] = useState({});
   const logsPerPage = 10;
   
   const [communityUsers, setCommunityUsers] = useState([]);
@@ -37,6 +38,45 @@ const AdminCommunity = () => {
   const [localAddress, setLocalAddress] = useState('');
   const [localLoginConfig, setLocalLoginConfig] = useState({ portals: 0, floors: [], doors: [], exceptions: [] });
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const handleMonthChange = async (year, month) => {
+    const start = `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
+    const nextMonthDate = new Date(year, month + 1, 1);
+    const end = `${nextMonthDate.getFullYear()}-${(nextMonthDate.getMonth() + 1).toString().padStart(2, '0')}-01`;
+    
+    const data = await getReservationsByMonthRange(Number(id), start, end);
+    setDailyReservations(data || []);
+  };
+
+  const handleLogsMonthChange = async (year, month) => {
+    if (!id) return;
+    const start = `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
+    const nextMonthDate = new Date(year, month + 1, 1);
+    const end = `${nextMonthDate.getFullYear()}-${(nextMonthDate.getMonth() + 1).toString().padStart(2, '0')}-01`;
+    
+    const data = await getLoginLogsByMonthRange(Number(id), start, end);
+    const unverifiedIds = communityUsers.filter(u => !u.isVerified).map(u => u.id);
+    
+    const highlights = {};
+    data.forEach(log => {
+      // Si el log es de un usuario que AHORA está sin verificar, mostramos punto rojo
+      if (unverifiedIds.includes(log.user_id)) {
+        const dateStr = log.created_at.split('T')[0];
+        if (!highlights[dateStr]) highlights[dateStr] = [];
+        if (!highlights[dateStr].includes('red')) highlights[dateStr].push('red');
+      }
+    });
+    setLogsHighlights(highlights);
+  };
+
+  // Llama a handleLogsMonthChange al cargar los usuarios inicialmente para pintar el mes actual
+  useEffect(() => {
+    if (communityUsers.length > 0) {
+      const d = new Date(logsDate || getLocalDateString());
+      handleLogsMonthChange(d.getFullYear(), d.getMonth());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [communityUsers, refresh]);
 
   const handleResMonthChange = async (year, month) => {
     const start = `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
@@ -306,7 +346,8 @@ const AdminCommunity = () => {
             <MonthCalendar 
               value={logsDate || getLocalDateString()} 
               onChange={(d) => { setLogsDate(d); setLogsPage(1); }} 
-              onMonthChange={() => {}} 
+              onMonthChange={handleLogsMonthChange} 
+              highlights={logsHighlights}
             />
           </div>
 
