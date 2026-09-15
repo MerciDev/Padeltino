@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getReservationById, getCommunities, removeReservationById, toggleReservationOpen, getReservationPlayers, addReservationPlayer, removeReservationPlayer, getHouseholdMembers, joinOpenReservation, updateReservationPlayer } from '../store/api';
 import { getLocalDateString } from '../utils/date';
@@ -25,6 +25,16 @@ const ReservationDetail = ({ user }) => {
   const [householdMembers, setHouseholdMembers] = useState([]);
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [changingPlayerId, setChangingPlayerId] = useState(null);
+  const addPlayerRef = useRef(null);
+  const playersSectionRef = useRef(null);
+
+  useEffect(() => {
+    if (showAddPlayer && addPlayerRef.current) {
+      setTimeout(() => {
+        addPlayerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [showAddPlayer]);
   const [copiedCode, setCopiedCode] = useState(false);
   const [joining, setJoining] = useState(false);
 
@@ -58,6 +68,10 @@ const ReservationDetail = ({ user }) => {
     fetchData();
   }, [id, user.id]);
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const formatDate = (isoStr) => {
     if (!isoStr) return '';
     const [y, m, d] = isoStr.split('-');
@@ -66,7 +80,7 @@ const ReservationDetail = ({ user }) => {
 
   const handleCancel = async () => {
     setCancelling(true);
-    const success = await removeReservationById(id);
+    const success = await removeReservationById(reservation.id);
     if (success) {
       showAlert('Reserva cancelada correctamente.', 'success');
       navigate('/dashboard');
@@ -93,8 +107,13 @@ const ReservationDetail = ({ user }) => {
           playerName: hm.name,
           householdMemberId: hm.id
         } : p));
-        setShowAddPlayer(false);
         setChangingPlayerId(null);
+        setShowAddPlayer(false);
+        setTimeout(() => {
+          if (playersSectionRef.current) {
+            playersSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
       } else {
         showAlert('Error al cambiar jugador', 'error');
       }
@@ -114,6 +133,11 @@ const ReservationDetail = ({ user }) => {
         isOwner: isFirst
       }]);
       setShowAddPlayer(false);
+      setTimeout(() => {
+        if (playersSectionRef.current) {
+          playersSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
     } else {
       showAlert('Error al añadir jugador', 'error');
     }
@@ -130,9 +154,9 @@ const ReservationDetail = ({ user }) => {
 
   const handleJoinOpenMatch = async () => {
     setJoining(true);
-    const result = await joinOpenReservation(id, user.id, user.name);
+    const result = await joinOpenReservation(reservation.id, user.id, user.name);
     if (result.success) {
-      setPlayers([...players, { id: Date.now(), reservationId: id, playerName: user.name, userId: user.id, isOwner: false }]);
+      setPlayers([...players, { id: Date.now(), reservationId: reservation.id, playerName: user.name, userId: user.id, isOwner: false }]);
       showAlert('¡Te has unida al partido!', 'success');
     } else {
       showAlert(result.error || 'Error al unirse', 'error');
@@ -143,7 +167,7 @@ const ReservationDetail = ({ user }) => {
   const handleToggleOpen = async () => {
     setTogglingOpen(true);
     const newState = !reservation.isOpen;
-    const success = await toggleReservationOpen(id, newState);
+    const success = await toggleReservationOpen(reservation.id, newState);
     if (success) {
       setReservation({ ...reservation, isOpen: newState });
       showAlert(newState ? 'El partido ahora es público' : 'El partido vuelve a ser privado', 'success');
@@ -243,7 +267,7 @@ const ReservationDetail = ({ user }) => {
 
         {/* Ticket Body */}
         <div style={{ padding: '32px 24px', backgroundColor: 'var(--clr-bg)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
+          <div ref={playersSectionRef} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
               <div style={{ padding: '10px', backgroundColor: 'var(--clr-bg-alt)', borderRadius: '12px', color: 'var(--clr-primary)' }}>
                 <Calendar size={24} />
@@ -388,7 +412,7 @@ const ReservationDetail = ({ user }) => {
 
             {/* Selector de familiares para añadir */}
             {showAddPlayer && (
-              <div style={{ marginTop: '16px', padding: '16px', backgroundColor: 'var(--clr-bg)', border: '1px solid var(--clr-border)', borderRadius: '12px' }}>
+              <div ref={addPlayerRef} style={{ marginTop: '16px', padding: '16px', backgroundColor: 'var(--clr-bg)', border: '1px solid var(--clr-border)', borderRadius: '12px' }}>
                 <h4 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>{changingPlayerId ? 'Cambiar jugador por:' : 'Añadir de tu vivienda'}</h4>
                 <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-start', marginTop: '16px' }}>
                   {!players.some(p => p.playerName === user.name) && (

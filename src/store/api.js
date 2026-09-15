@@ -374,10 +374,10 @@ export const addReservation = async (date, communityId, courtId, timeSlot, userI
   
   if (error || !data || data.length === 0) {
     console.error('Add reservation error:', error);
-    return false;
+    return { success: false };
   }
   
-  return true;
+  return { success: true, reservation: data[0] };
 };
 
 export const removeReservation = async (date, communityId, courtId, timeSlot) => {

@@ -182,10 +182,11 @@ const Booking = ({ user }) => {
 
   const confirmBooking = async () => {
     const { courtId, timeSlot } = bookingModal;
-    const success = await addReservation(date, userCommunity.id, courtId, timeSlot, user.id, user.name);
-    if (success) {
+    const result = await addReservation(date, userCommunity.id, courtId, timeSlot, user.id, user.name);
+    if (result.success) {
       setRefresh(r => r + 1);
       setBookingModal({ isOpen: false, courtId: null, timeSlot: null, courtName: '' });
+      navigate(`/reservation/${result.reservation.invite_code}`);
     } else {
       showAlert('Este tramo ya está reservado o ha habido un error.', 'Error de reserva');
       setBookingModal({ isOpen: false, courtId: null, timeSlot: null, courtName: '' });
@@ -270,9 +271,10 @@ const Booking = ({ user }) => {
           
           const [y, m, d] = date.split('-').map(Number);
           const slotDate = new Date(y, m - 1, d, Math.floor(current / 60), current % 60);
+          const slotEndDate = new Date(y, m - 1, d, Math.floor(next / 60), next % 60);
           
-          // 1. Check if in the past
-          if (slotDate.getTime() < Date.now()) {
+          // 1. Check if in the past (using end time so it's bookable while running)
+          if (slotEndDate.getTime() <= Date.now()) {
             isLockedByTime = true;
             lockReason = 'Pasado';
           } 
@@ -442,8 +444,8 @@ const Booking = ({ user }) => {
                                   message: '¿Deseas desbloquear este horario para que los usuarios puedan reservarlo libremente?',
                                   confirmText: 'Desbloquear',
                                   action: async () => {
-                                    const success = await addReservation(date, userCommunity.id, court.id, block.timeSlot, 'SYSTEM_UNLOCKED', 'Desbloqueo Manual');
-                                    if (success) {
+                                    const result = await addReservation(date, userCommunity.id, court.id, block.timeSlot, 'SYSTEM_UNLOCKED', 'Desbloqueo Manual');
+                                    if (result.success) {
                                       setRefresh(r => r + 1);
                                     }
                                     setConfirmModal(prev => ({ ...prev, isOpen: false }));
