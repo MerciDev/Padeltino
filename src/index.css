@@ -1191,7 +1191,20 @@ input { font-family: var(--font); }
 .timetable-slot:hover {
   transform: translateY(-2px);
   z-index: 20;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Logo Text for Desktop */
+.logo-text {
+  display: none;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+@media (min-width: 768px) {
+  .logo-text {
+    display: inline-block;
+  }
 }
 
 .timetable-slot.is-taken:hover {

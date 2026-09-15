@@ -12,7 +12,10 @@ const Navbar = ({ isAdmin, onLogout, user }) => {
   return (
     <nav className="navbar">
       <div className="navbar-inner">
-        <Link to="/" className="navbar-logo" onClick={closeMenu}>PADELTINO</Link>
+        <Link to="/" className="navbar-logo" onClick={closeMenu} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <img src="/logo.svg" alt="Padeltino" style={{ height: '32px' }} />
+          <span className="logo-text">PADELTINO</span>
+        </Link>
         
         <button className={`navbar-mobile-toggle ${isMenuOpen ? 'is-open' : ''}`} onClick={toggleMenu} aria-label="Toggle menu">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

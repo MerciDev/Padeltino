@@ -220,7 +220,9 @@ const Login = ({ onLogin }) => {
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 2c4.41 0 8 3.59 8 8s-3.59 8-8 8-8-3.59-8-8 3.59-8 8-8zm-1 5v2H9v2h2v6h2v-6h2v-2h-2V9h-2z"/>
             </svg>
           </div>
-          <div className="login-brand">PADELTINO</div>
+          <div className="login-brand" style={{ display: 'flex', justifyContent: 'center' }}>
+            <img src="/logo.svg" alt="Padeltino" style={{ height: '48px', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))' }} />
+          </div>
           <div className="login-tagline">
             {isGlobalAdminLogin ? 'Acceso Administrador General' : `Acceso a ${community.name}`}
           </div>

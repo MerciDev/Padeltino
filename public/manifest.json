@@ -1,0 +1,17 @@
+{
+  "name": "Padeltino",
+  "short_name": "Padeltino",
+  "description": "App para reserva de pistas de pádel",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "192x192 512x512 any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
