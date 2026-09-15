@@ -12,7 +12,7 @@ import User from './pages/User';
 import ReservationDetail from './pages/ReservationDetail';
 import { AlertProvider } from './components/AlertContext';
 
-const APP_VERSION = 'v1.4.0';
+const APP_VERSION = 'v1.5';
 
 function App() {
   const [user, setUser] = useState(() => {
