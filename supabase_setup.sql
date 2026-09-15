@@ -4,7 +4,8 @@ CREATE TABLE users (
   name text NOT NULL,
   community_id integer,
   is_admin boolean DEFAULT false,
-  is_verified boolean DEFAULT false
+  is_verified boolean DEFAULT false,
+  permissions jsonb DEFAULT '{}'::jsonb
 );
 
 -- 2. Tabla de Urbanizaciones
@@ -78,3 +79,6 @@ ALTER TABLE users ADD COLUMN allowed_device_id text;
 UPDATE users SET password = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918' WHERE id = 'admin';
 -- Poner is_verified = true para los usuarios por defecto
 UPDATE users SET is_verified = true;
+
+-- 6. Añadir columna de permisos para administradores secundarios
+ALTER TABLE users ADD COLUMN permissions jsonb DEFAULT '{}'::jsonb;

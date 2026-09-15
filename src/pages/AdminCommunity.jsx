@@ -12,6 +12,18 @@ const AdminCommunity = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { showAlert } = useAlert();
+  
+  const currentUser = JSON.parse(localStorage.getItem('padeltino_user') || '{}');
+  const isRoot = currentUser.id === 'admin';
+  const perms = currentUser.permissions || {};
+  
+  const canManageSettings = isRoot || perms.canManageSettings;
+  const canManageAccessStructure = isRoot || perms.canManageAccessStructure;
+  const canManageLogs = isRoot || perms.canManageLogs;
+  const canManageReservations = isRoot || perms.canManageReservations;
+  const canManageUnlocks = isRoot || perms.canManageUnlocks;
+  const canManageCourts = isRoot || perms.canManageCourts;
+  
   const [refresh, setRefresh] = useState(0);
   const [date, setDate] = useState(getLocalDateString());
   const [unlockDate, setUnlockDate] = useState(getLocalDateString());
@@ -173,6 +185,19 @@ const AdminCommunity = () => {
     );
   }
 
+  const isAllowedCommunity = isRoot || (perms.allowedCommunities && perms.allowedCommunities.includes(Number(id)));
+  
+  if (!isAllowedCommunity) {
+    return (
+      <div className="page-container">
+        <p style={{ color: 'var(--clr-red)', fontWeight: 600, fontSize: '1.2rem' }}>Acceso Denegado</p>
+        <p style={{ color: 'var(--clr-text-muted)' }}>No tienes permiso para gestionar esta urbanización.</p>
+        <br/>
+        <Link to="/admin">Volver al panel</Link>
+      </div>
+    );
+  }
+
   const handleSaveCommunity = async () => {
     const success = await updateCommunityInfo(community.id, localName, localAddress, localLoginConfig);
     if (success) {
@@ -246,6 +271,7 @@ const AdminCommunity = () => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
         
         {/* Ajustes Superiores */}
+        {canManageSettings && (
         <div className="card">
           <div className="card-header">
             <div className="card-title">Ajustes Generales</div>
@@ -267,8 +293,10 @@ const AdminCommunity = () => {
             {saveSuccess && <span style={{ color: 'var(--clr-green)', fontSize: '0.9rem', fontWeight: 600 }}>¡Cambios guardados!</span>}
           </div>
         </div>
+        )}
 
         {/* Configuración Login Vecinos */}
+        {canManageAccessStructure && (
         <div className="card" style={{ marginBottom: '40px' }}>
           <div className="card-header" style={{ marginBottom: '24px' }}>
             <div className="card-title">Estructura de Acceso (Botonera)</div>
@@ -326,8 +354,10 @@ const AdminCommunity = () => {
             {saveSuccess && <span style={{ color: 'var(--clr-green)', fontSize: '0.9rem', fontWeight: 600 }}>¡Cambios guardados!</span>}
           </div>
         </div>
+        )}
 
         {/* LOGS */}
+        {canManageLogs && (
         <div className="admin-card" style={{ overflowX: 'auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
             <div>
@@ -425,11 +455,13 @@ const AdminCommunity = () => {
             </div>
           )}
         </div>
+        )}
 
         {/* Visor de Reservas y Desbloqueos en Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px', marginBottom: '40px' }}>
           
           {/* Card: Reservas */}
+          {canManageReservations && (
           <div className="card">
             <div className="card-header" style={{ marginBottom: '16px' }}>
               <div className="card-title">Reservas Reales</div>
@@ -469,8 +501,10 @@ const AdminCommunity = () => {
               )}
             </div>
           </div>
+          )}
 
           {/* Card: Desbloqueos */}
+          {canManageUnlocks && (
           <div className="card">
             <div className="card-header" style={{ marginBottom: '16px' }}>
               <div className="card-title">Desbloqueos Manuales</div>
@@ -517,9 +551,11 @@ const AdminCommunity = () => {
               )}
             </div>
           </div>
+          )}
         </div>
 
         {/* Pistas */}
+        {canManageCourts && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Pistas Disponibles</h2>
@@ -558,6 +594,7 @@ const AdminCommunity = () => {
             ))}
           </div>
         </div>
+        )}
 
       </div>
 

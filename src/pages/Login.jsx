@@ -141,11 +141,12 @@ const Login = ({ onLogin }) => {
     if (!username.trim() || !password.trim()) return;
 
     const id = username.toLowerCase();
-    const isAdmin = id === 'admin';
-    const displayName = parseDisplayName(username);
 
     setLoading(true);
     const dbUser = await getUser(id);
+    
+    const isAdmin = dbUser ? dbUser.isAdmin : id === 'admin';
+    const displayName = (dbUser && dbUser.name) ? dbUser.name : parseDisplayName(username);
 
     // Verify Password
     if (isAdmin) {
@@ -184,7 +185,8 @@ const Login = ({ onLogin }) => {
       id: id,
       communityId: isGlobalAdminLogin ? fallbackId : Number(communityId),
       isVerified: dbUser ? dbUser.isVerified : false,
-      hasPassword: dbUser ? !!dbUser.password : false
+      hasPassword: dbUser ? !!dbUser.password : false,
+      permissions: dbUser ? dbUser.permissions : {}
     };
     
     // Ensure the user exists in the DB so foreign keys for reservations work

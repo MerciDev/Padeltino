@@ -44,7 +44,8 @@ export const getUser = async (id) => {
     communityId: data.community_id,
     isAdmin: data.is_admin,
     password: data.password, // Return password for verification
-    isVerified: data.is_verified
+    isVerified: data.is_verified,
+    permissions: data.permissions || {}
   };
 };
 
@@ -96,6 +97,73 @@ export const getCommunityUsers = async (communityId) => {
     isVerified: user.is_verified,
     hasPassword: !!user.password
   }));
+};
+
+export const getAdmins = async () => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('is_admin', true);
+  if (error) {
+    console.error('Error fetching admins:', error);
+    return [];
+  }
+  return data.map(admin => ({
+    id: admin.id,
+    name: admin.name,
+    permissions: admin.permissions || {}
+  }));
+};
+
+export const createAdmin = async (id, name, password, permissions = {}) => {
+  const hashedPassword = await hashPassword(password);
+  
+  const { error } = await supabase.from('users').insert([{
+    id,
+    name,
+    is_admin: true,
+    is_verified: true,
+    password: hashedPassword,
+    permissions
+  }]);
+  
+  if (error) {
+    console.error('Error creating admin:', error);
+    return false;
+  }
+  return true;
+};
+
+export const deleteAdmin = async (id) => {
+  if (id === 'admin') return false; // Prevent deleting the root admin
+  
+  const { error } = await supabase
+    .from('users')
+    .delete()
+    .eq('id', id)
+    .eq('is_admin', true);
+    
+  if (error) {
+    console.error('Error deleting admin:', error);
+    return false;
+  }
+  return true;
+};
+
+export const updateAdminPermissions = async (id, permissions) => {
+  if (id === 'admin') return false; // El admin root no debe tener restricciones
+  
+  const { error } = await supabase
+    .from('users')
+    .update({ permissions })
+    .eq('id', id)
+    .eq('is_admin', true);
+    
+  if (error) {
+    console.error('Error updating admin permissions:', error);
+    return false;
+  }
+  return true;
 };
 
 export const logLogin = async (userId, userName, communityId, deviceInfo, ipAddress, deviceId) => {
