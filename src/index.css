@@ -1194,17 +1194,11 @@ input { font-family: var(--font); }
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-/* Logo Text for Desktop */
+/* Logo Text */
 .logo-text {
-  display: none;
+  display: inline-block;
   font-weight: 800;
   letter-spacing: 1px;
-}
-
-@media (min-width: 768px) {
-  .logo-text {
-    display: inline-block;
-  }
 }
 
 .timetable-slot.is-taken:hover {
