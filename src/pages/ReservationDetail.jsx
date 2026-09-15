@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getReservationById, getCommunities, removeReservationById, toggleReservationOpen, getReservationPlayers, addReservationPlayer, removeReservationPlayer, getHouseholdMembers, joinOpenReservation } from '../store/api';
+import { getReservationById, getCommunities, removeReservationById, toggleReservationOpen, getReservationPlayers, addReservationPlayer, removeReservationPlayer, getHouseholdMembers, joinOpenReservation, updateReservationPlayer } from '../store/api';
 import { getLocalDateString } from '../utils/date';
 import PageLoader from '../components/PageLoader';
 import Button from '../components/Button';
 import { useAlert } from '../components/AlertContext';
-import { ArrowLeft, Calendar, Clock, MapPin, Trash2, Loader2, Users, UserPlus, X, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, Trash2, Loader2, Users, UserPlus, X, Copy, Check, RefreshCw } from 'lucide-react';
 
 const ReservationDetail = ({ user }) => {
   const { id } = useParams();
@@ -24,21 +24,24 @@ const ReservationDetail = ({ user }) => {
   const [players, setPlayers] = useState([]);
   const [householdMembers, setHouseholdMembers] = useState([]);
   const [showAddPlayer, setShowAddPlayer] = useState(false);
+  const [changingPlayerId, setChangingPlayerId] = useState(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [joining, setJoining] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const [resData, commsData, playersData, houseData] = await Promise.all([
-        getReservationById(id),
-        getCommunities(),
-        getReservationPlayers(id),
-        getHouseholdMembers(user.id)
-      ]);
-
+      const resData = await getReservationById(id);
+      
       if (resData) {
         setReservation(resData);
+        
+        const [commsData, playersData, houseData] = await Promise.all([
+          getCommunities(),
+          getReservationPlayers(resData.id),
+          getHouseholdMembers(user.id)
+        ]);
+
         setPlayers(playersData || []);
         setHouseholdMembers(houseData || []);
         
@@ -81,10 +84,35 @@ const ReservationDetail = ({ user }) => {
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
-  const handleAddHouseholdMember = async (member) => {
-    const success = await addReservationPlayer(id, member.name, null, member.id, false);
+  const handleAddHouseholdMember = async (hm) => {
+    if (changingPlayerId) {
+      const success = await updateReservationPlayer(changingPlayerId, hm.name, hm.id);
+      if (success) {
+        setPlayers(players.map(p => p.id === changingPlayerId ? {
+          ...p,
+          playerName: hm.name,
+          householdMemberId: hm.id
+        } : p));
+        setShowAddPlayer(false);
+        setChangingPlayerId(null);
+      } else {
+        showAlert('Error al cambiar jugador', 'error');
+      }
+      return;
+    }
+
+    // If this is the first player added, they become the owner/creator
+    const isFirst = players.length === 0;
+    const success = await addReservationPlayer(reservation.id, hm.name, reservation.userId, hm.id, isFirst);
     if (success) {
-      setPlayers([...players, { id: Date.now(), reservationId: id, playerName: member.name, householdMemberId: member.id, isOwner: false }]);
+      setPlayers([...players, {
+        id: Date.now(), // Temp ID until reload
+        reservationId: reservation.id,
+        playerName: hm.name,
+        userId: reservation.userId,
+        householdMemberId: hm.id,
+        isOwner: isFirst
+      }]);
       setShowAddPlayer(false);
     } else {
       showAlert('Error al añadir jugador', 'error');
@@ -252,72 +280,156 @@ const ReservationDetail = ({ user }) => {
               )}
             </div>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {[...Array(4)].map((_, i) => {
+            {(() => {
+              const renderSlot = (i) => {
                 const player = players[i];
+                
+                // Buscar datos de la vivienda si los hay (foto, edad)
+                const hm = player?.householdMemberId ? householdMembers.find(m => m.id === player.householdMemberId) : null;
+                const photoUrl = hm?.photo_url || null;
+                const age = hm?.age || null;
+                
                 return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: 'var(--clr-bg-alt)', borderRadius: '8px', border: '1px solid var(--clr-border)' }}>
+                  <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '24px 16px', backgroundColor: 'var(--clr-bg-alt)', borderRadius: '12px', border: '1px solid var(--clr-border)', position: 'relative' }}>
                     {player ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--clr-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                          {player.playerName.charAt(0).toUpperCase()}
+                      <>
+                        <div style={{ 
+                          width: '88px', height: '88px', borderRadius: '50%', 
+                          backgroundColor: '#ef4444', 
+                          color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                          fontSize: '36px', fontWeight: 'bold', overflow: 'hidden',
+                          border: '4px solid #ef4444', 
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                        }}>
+                          {photoUrl ? (
+                            <img src={photoUrl} alt={player.playerName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            player.playerName.charAt(0).toUpperCase()
+                          )}
                         </div>
-                        <span style={{ fontWeight: '500' }}>{player.playerName} {player.isOwner && '(Creador)'}</span>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', opacity: 0.5 }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--clr-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <UserPlus size={16} />
+                        
+                        <div style={{ textAlign: 'center' }}>
+                          <span style={{ display: 'block', fontSize: '1.05rem', fontWeight: '600', maxWidth: '140px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {player.playerName}
+                          </span>
+                          {age && (
+                            <span style={{ display: 'block', fontSize: '0.9rem', color: 'var(--clr-text-muted)', marginTop: '4px' }}>
+                              {age} años
+                            </span>
+                          )}
+                          {player.isOwner && (
+                            <span style={{ display: 'inline-block', fontSize: '0.7rem', color: 'white', backgroundColor: 'var(--clr-primary)', fontWeight: '600', marginTop: '8px', padding: '2px 8px', borderRadius: '100px' }}>
+                              CREADOR
+                            </span>
+                          )}
                         </div>
-                        <span style={{ fontStyle: 'italic' }}>Hueco libre</span>
-                      </div>
-                    )}
-                    
-                    {/* Acciones para el slot */}
-                    {player ? (
-                      canCancel && !player.isOwner && (
-                        <button onClick={() => handleRemovePlayer(player.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}>
-                          <X size={16} />
-                        </button>
-                      )
+
+                        {canCancel && !player.isOwner && (
+                          <button onClick={() => handleRemovePlayer(player.id)} style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(239, 68, 68, 0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '6px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Expulsar jugador">
+                            <X size={16} />
+                          </button>
+                        )}
+                        {canCancel && player.isOwner && (
+                          <button onClick={() => { setChangingPlayerId(player.id); setShowAddPlayer(true); }} style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(59, 130, 246, 0.1)', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '6px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Cambiar jugador">
+                            <RefreshCw size={16} />
+                          </button>
+                        )}
+                      </>
                     ) : (
-                      canCancel ? (
-                        <Button variant="secondary" onClick={() => setShowAddPlayer(true)} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
-                          Añadir
-                        </Button>
-                      ) : (
-                        reservation.isOpen && !players.some(p => p.userId === user.id) ? (
-                          <Button onClick={handleJoinOpenMatch} disabled={joining} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
-                            {joining ? <Loader2 size={16} className="spin" /> : 'Unirme'}
-                          </Button>
-                        ) : null
-                      )
+                      <>
+                        <div style={{ width: '88px', height: '88px', borderRadius: '50%', backgroundColor: 'var(--clr-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px dashed var(--clr-border)', opacity: 0.6 }}>
+                          <UserPlus size={32} color="var(--clr-text-muted)" />
+                        </div>
+                        <span style={{ fontStyle: 'italic', color: 'var(--clr-text-muted)', fontSize: '0.95rem' }}>Hueco libre</span>
+                        
+                        <div style={{ marginTop: 'auto', paddingTop: '8px' }}>
+                          {canCancel ? (
+                            <Button variant="secondary" onClick={() => { setChangingPlayerId(null); setShowAddPlayer(true); }} style={{ padding: '6px 16px', fontSize: '0.85rem' }}>
+                              Añadir
+                            </Button>
+                          ) : (
+                            reservation.isOpen && !players.some(p => p.userId === user.id) ? (
+                              <Button onClick={handleJoinOpenMatch} disabled={joining} style={{ padding: '6px 16px', fontSize: '0.85rem' }}>
+                                {joining ? <Loader2 size={16} className="spin" /> : 'Unirme'}
+                              </Button>
+                            ) : null
+                          )}
+                        </div>
+                      </>
                     )}
                   </div>
                 );
-              })}
-            </div>
+              };
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {/* Equipo 1 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    {renderSlot(0)}
+                    {renderSlot(1)}
+                  </div>
+                  
+                  {/* Separador VS */}
+                  <div style={{ margin: '20px 0', textAlign: 'center', position: 'relative' }}>
+                    <hr style={{ border: 'none', borderTop: '2px solid var(--clr-border)' }} />
+                    <span style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', backgroundColor: 'var(--clr-bg)', padding: '0 16px', fontSize: '1rem', color: 'var(--clr-primary)', fontWeight: '800', fontStyle: 'italic' }}>
+                      VS
+                    </span>
+                  </div>
+
+                  {/* Equipo 2 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    {renderSlot(2)}
+                    {renderSlot(3)}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Selector de familiares para añadir */}
             {showAddPlayer && (
               <div style={{ marginTop: '16px', padding: '16px', backgroundColor: 'var(--clr-bg)', border: '1px solid var(--clr-border)', borderRadius: '12px' }}>
-                <h4 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>Añadir de tu vivienda</h4>
-                {householdMembers.length > 0 ? (
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    {householdMembers.filter(hm => !players.some(p => p.householdMemberId === hm.id)).map(hm => (
-                      <Button key={hm.id} variant="secondary" onClick={() => handleAddHouseholdMember(hm)} style={{ fontSize: '0.85rem', padding: '6px 12px' }}>
-                        + {hm.name}
-                      </Button>
-                    ))}
-                    {householdMembers.filter(hm => !players.some(p => p.householdMemberId === hm.id)).length === 0 && (
-                      <span style={{ fontSize: '0.85rem', color: 'var(--clr-text-muted)' }}>Todos los miembros ya están en el partido.</span>
-                    )}
-                  </div>
-                ) : (
-                  <span style={{ fontSize: '0.85rem', color: 'var(--clr-text-muted)' }}>No tienes a nadie añadido a tu vivienda. (Añádelos en Mi Perfil)</span>
-                )}
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>{changingPlayerId ? 'Cambiar jugador por:' : 'Añadir de tu vivienda'}</h4>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-start', marginTop: '16px' }}>
+                  {!players.some(p => p.playerName === user.name) && (
+                    <div onClick={() => handleAddHouseholdMember({ id: null, name: user.name })} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', width: '90px', transition: 'transform 0.2s' }} onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+                      <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--clr-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                        {user.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: 'var(--clr-primary)', lineHeight: '1.2' }}>Añadirme<br/>a mí</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {householdMembers.filter(hm => !players.some(p => p.householdMemberId === hm.id)).map(hm => (
+                    <div key={hm.id} onClick={() => handleAddHouseholdMember(hm)} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', width: '90px', transition: 'transform 0.2s' }} onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+                      <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--clr-bg-alt)', border: '2px solid var(--clr-primary)', color: 'var(--clr-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 'bold', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                        {hm.photo_url ? (
+                          <img src={hm.photo_url} alt={hm.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          hm.name.charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '90px' }}>
+                          {hm.name}
+                        </span>
+                        {hm.age && (
+                          <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--clr-text-muted)' }}>{hm.age} años</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {householdMembers.filter(hm => !players.some(p => p.householdMemberId === hm.id)).length === 0 && players.some(p => p.playerName === user.name) && (
+                    <div style={{ width: '100%', textAlign: 'center', padding: '12px' }}>
+                      <span style={{ fontSize: '0.9rem', color: 'var(--clr-text-muted)' }}>Todos los miembros de tu vivienda ya están en el partido.</span>
+                    </div>
+                  )}
+                </div>
                 <div style={{ marginTop: '12px', textAlign: 'right' }}>
-                  <Button variant="ghost" onClick={() => setShowAddPlayer(false)} style={{ fontSize: '0.85rem', padding: '4px 8px' }}>Cerrar</Button>
+                  <Button variant="ghost" onClick={() => { setShowAddPlayer(false); setChangingPlayerId(null); }} style={{ fontSize: '0.85rem', padding: '4px 8px' }}>Cerrar</Button>
                 </div>
               </div>
             )}

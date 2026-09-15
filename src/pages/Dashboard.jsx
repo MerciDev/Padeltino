@@ -69,7 +69,7 @@ const Dashboard = ({ user, setUser }) => {
       
       if (user.communityId) {
         const openRes = await getOpenReservations(user.communityId);
-        setOpenReservations(openRes.filter(r => !reservations.some(my => my.id === r.id)));
+        setOpenReservations(openRes);
       }
       
       if (user.isVerified && !user.hasPassword && !user.isAdmin) {
@@ -183,13 +183,16 @@ const Dashboard = ({ user, setUser }) => {
           {openReservations.map((res, i) => {
             const community = communities.find(c => c.id === res.communityId);
             const court = community?.courts.find(c => c.id === res.courtId);
+            const isMyReservation = userReservations.some(my => my.id === res.id);
+            const badgeColor = isMyReservation ? '#3b82f6' : '#22c55e';
+            const badgeText = isMyReservation ? 'Tu Partido' : '¡Únete!';
             
             return (
               <Link 
-                to={`/reservation/${res.id}`}
+                to={`/reservation/${res.inviteCode || res.id}`}
                 key={`open-${i}`} 
                 className="reservation-card" 
-                style={{ textDecoration: 'none', color: 'inherit', display: 'block', transition: 'transform 0.2s', cursor: 'pointer', borderColor: '#22c55e' }}
+                style={{ textDecoration: 'none', color: 'inherit', display: 'block', transition: 'transform 0.2s', cursor: 'pointer', borderColor: badgeColor }}
                 onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
                 onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
               >
@@ -198,9 +201,15 @@ const Dashboard = ({ user, setUser }) => {
                     <div className="reservation-court">{court?.name || 'Pista Eliminada'}</div>
                     <div className="reservation-date">{formatDate(res.date)} a las {res.timeSlot}</div>
                   </div>
-                  <span className="badge" style={{ backgroundColor: '#22c55e', color: 'white' }}>¡Únete!</span>
+                  <span className="badge" style={{ backgroundColor: badgeColor, color: 'white' }}>{badgeText}</span>
                 </div>
-                <div className="reservation-slot font-mono" style={{ fontSize: '0.85rem' }}>Creado por {res.userName}</div>
+                <div className="reservation-slot font-mono" style={{ fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span>Creado por {res.userName}</span>
+                    <span style={{ color: 'var(--clr-text-muted)', fontSize: '0.75rem' }}>{community?.name}</span>
+                  </div>
+                  <span style={{ fontWeight: '600' }}>{res.playerCount}/4 Jugadores</span>
+                </div>
               </Link>
             );
           })}
@@ -240,7 +249,7 @@ const Dashboard = ({ user, setUser }) => {
               
               return (
                 <Link 
-                  to={`/reservation/${res.id}`}
+                  to={`/reservation/${res.inviteCode || res.id}`}
                   key={`upc-${i}`} 
                   className="reservation-card" 
                   style={{ textDecoration: 'none', color: 'inherit', display: 'block', transition: 'transform 0.2s', cursor: 'pointer' }}
@@ -321,7 +330,7 @@ const Dashboard = ({ user, setUser }) => {
                 if (res.success) {
                   showAlert('¡Te has unido al partido!', 'success');
                   setJoinModalOpen(false);
-                  navigate(`/reservation/${res.reservationId}`);
+                  navigate(`/reservation/${res.reservationCode}`);
                 } else {
                   showAlert(res.error || 'Código inválido o partido lleno', 'error');
                 }
