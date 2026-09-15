@@ -264,19 +264,16 @@ export const getReservationsByDate = async (date) => {
     courtId: r.court_id,
     timeSlot: r.time_slot,
     userId: r.user_id,
-    userName: r.user_name
+    userName: r.user_name,
+    isOpen: r.is_open,
+    inviteCode: r.invite_code
   }));
 };
 
 export const getReservationsByMonthRange = async (startDate, endDate) => {
-  const { data, error } = await supabase
-    .from('reservations')
-    .select('*')
-    .gte('date', startDate)
-    .lte('date', endDate);
-
+  const { data, error } = await supabase.from('reservations').select('*').gte('date', startDate).lte('date', endDate);
   if (error) {
-    console.error('Error fetching monthly reservations:', error);
+    console.error('Error fetching month reservations:', error);
     return [];
   }
   return data.map(r => ({
@@ -286,8 +283,35 @@ export const getReservationsByMonthRange = async (startDate, endDate) => {
     courtId: r.court_id,
     timeSlot: r.time_slot,
     userId: r.user_id,
-    userName: r.user_name
+    userName: r.user_name,
+    isOpen: r.is_open,
+    inviteCode: r.invite_code
   }));
+};
+
+export const getReservationById = async (id) => {
+  const { data, error } = await supabase.from('reservations').select('*').eq('id', id).single();
+  if (error) return null;
+  return {
+    id: data.id,
+    date: data.date,
+    communityId: data.community_id,
+    courtId: data.court_id,
+    timeSlot: data.time_slot,
+    userId: data.user_id,
+    userName: data.user_name,
+    isOpen: data.is_open,
+    inviteCode: data.invite_code
+  };
+};
+
+export const removeReservationById = async (id) => {
+  const { error } = await supabase.from('reservations').delete().match({ id });
+  if (error) {
+    console.error('Remove reservation error:', error);
+    return false;
+  }
+  return true;
 };
 
 export const getUserReservations = async (userId) => {
@@ -300,7 +324,9 @@ export const getUserReservations = async (userId) => {
     courtId: r.court_id,
     timeSlot: r.time_slot,
     userId: r.user_id,
-    userName: r.user_name
+    userName: r.user_name,
+    isOpen: r.is_open,
+    inviteCode: r.invite_code
   }));
 };
 
@@ -314,11 +340,16 @@ export const getAllReservations = async () => {
     courtId: r.court_id,
     timeSlot: r.time_slot,
     userId: r.user_id,
-    userName: r.user_name
+    userName: r.user_name,
+    isOpen: r.is_open,
+    inviteCode: r.invite_code
   }));
 };
 
 export const addReservation = async (date, communityId, courtId, timeSlot, userId, userName) => {
+  // Generate random 6 character code
+  const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+  
   const { data, error } = await supabase.from('reservations').insert([
     {
       date,
@@ -326,14 +357,28 @@ export const addReservation = async (date, communityId, courtId, timeSlot, userI
       court_id: courtId,
       time_slot: timeSlot,
       user_id: userId,
-      user_name: userName
+      user_name: userName,
+      is_open: false,
+      invite_code: inviteCode
     }
-  ]);
+  ]).select();
   
-  if (error) {
+  if (error || !data || data.length === 0) {
     console.error('Add reservation error:', error);
     return false;
   }
+  
+  // Add creator as owner in reservation_players
+  const newRes = data[0];
+  await supabase.from('reservation_players').insert([
+    {
+      reservation_id: newRes.id,
+      player_name: userName,
+      user_id: userId,
+      is_owner: true
+    }
+  ]);
+  
   return true;
 };
 
@@ -358,6 +403,19 @@ export const updateReservation = async (date, communityId, courtId, timeSlot, ne
     
   if (error) {
     console.error('Update reservation error:', error);
+    return false;
+  }
+  return true;
+};
+
+export const toggleReservationOpen = async (id, isOpen) => {
+  const { error } = await supabase
+    .from('reservations')
+    .update({ is_open: isOpen })
+    .match({ id });
+    
+  if (error) {
+    console.error('Toggle reservation open error:', error);
     return false;
   }
   return true;
@@ -561,3 +619,91 @@ export const generateTimeSlots = (config) => {
   }
   return slots;
 };
+
+// --- Player Management ---
+export const getReservationPlayers = async (reservationId) => {
+  const { data, error } = await supabase.from('reservation_players').select('*').eq('reservation_id', reservationId).order('joined_at', { ascending: true });
+  if (error) return [];
+  return data.map(p => ({
+    id: p.id,
+    reservationId: p.reservation_id,
+    playerName: p.player_name,
+    userId: p.user_id,
+    householdMemberId: p.household_member_id,
+    isOwner: p.is_owner,
+    joinedAt: p.joined_at
+  }));
+};
+
+export const addReservationPlayer = async (reservationId, playerName, userId = null, householdMemberId = null, isOwner = false) => {
+  const { error } = await supabase.from('reservation_players').insert([
+    {
+      reservation_id: reservationId,
+      player_name: playerName,
+      user_id: userId,
+      household_member_id: householdMemberId,
+      is_owner: isOwner
+    }
+  ]);
+  
+  if (error) {
+    console.error('Error adding player:', error);
+    return false;
+  }
+  return true;
+};
+
+export const removeReservationPlayer = async (playerId) => {
+  const { error } = await supabase.from('reservation_players').delete().eq('id', playerId);
+  if (error) {
+    console.error('Error removing player:', error);
+    return false;
+  }
+  return true;
+};
+
+export const joinReservationByCode = async (inviteCode, userId, playerName) => {
+  // First find the reservation
+  const { data: res, error: resError } = await supabase.from('reservations').select('id, is_open').eq('invite_code', inviteCode).single();
+  if (resError || !res) return { success: false, error: 'Código inválido o reserva no encontrada' };
+  
+  // Then get current players count
+  const { count, error: countError } = await supabase.from('reservation_players').select('*', { count: 'exact', head: true }).eq('reservation_id', res.id);
+  
+  if (countError) return { success: false, error: 'Error al verificar la reserva' };
+  if (count >= 4) return { success: false, error: 'El partido ya está completo (4/4)' };
+  
+  // Join
+  const success = await addReservationPlayer(res.id, playerName, userId, null, false);
+  if (success) {
+    return { success: true, reservationId: res.id };
+  }
+  return { success: false, error: 'Ya estás en este partido o hubo un error al unirte' };
+};
+
+export const joinOpenReservation = async (reservationId, userId, playerName) => {
+  const { count, error: countError } = await supabase.from('reservation_players').select('*', { count: 'exact', head: true }).eq('reservation_id', reservationId);
+  if (countError || count >= 4) return { success: false, error: 'El partido está completo' };
+  
+  const success = await addReservationPlayer(reservationId, playerName, userId, null, false);
+  return { success, error: success ? null : 'No se pudo unirte al partido' };
+};
+
+
+export const getOpenReservations = async (communityId) => {
+  const today = new Date().toISOString().split('T')[0];
+  const { data, error } = await supabase.from('reservations').select('*').eq('community_id', communityId).eq('is_open', true).gte('date', today);
+  if (error) return [];
+  return data.map(r => ({
+    id: r.id,
+    date: r.date,
+    communityId: r.community_id,
+    courtId: r.court_id,
+    timeSlot: r.time_slot,
+    userId: r.user_id,
+    userName: r.user_name,
+    isOpen: r.is_open,
+    inviteCode: r.invite_code
+  }));
+};
+

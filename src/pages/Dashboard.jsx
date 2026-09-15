@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import { getUserReservations, getAllReservations, getCommunities, updateUserPassword, getUser } from '../store/api';
+import { getUserReservations, getAllReservations, getCommunities, updateUserPassword, getUser, getOpenReservations, joinReservationByCode } from '../store/api';
 import PageLoader from '../components/PageLoader';
 import { getLocalDateString } from '../utils/date';
 import { getLocalDeviceId } from '../utils/device';
 import { useAlert } from '../components/AlertContext';
+import { useNavigate } from 'react-router-dom';
+import { Loader2, Key } from 'lucide-react';
 const formatDate = (isoStr) => {
   if (!isoStr) return '';
   const [y, m, d] = isoStr.split('-');
@@ -14,13 +16,22 @@ const formatDate = (isoStr) => {
 };
 
 const Dashboard = ({ user, setUser }) => {
+  const navigate = useNavigate();
   const [userReservations, setUserReservations] = useState([]);
+  const [openReservations, setOpenReservations] = useState([]);
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Modals state
   const [pwdModalOpen, setPwdModalOpen] = useState(false);
   const [newPwd, setNewPwd] = useState('');
   const [newPwdConfirm, setNewPwdConfirm] = useState('');
   const [pwdError, setPwdError] = useState('');
+  
+  const [joinModalOpen, setJoinModalOpen] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  const [joining, setJoining] = useState(false);
+  
   const { showAlert } = useAlert();
 
   const handlePasswordChange = async () => {
@@ -53,9 +64,13 @@ const Dashboard = ({ user, setUser }) => {
       // Solo obtenemos las reservas del propio usuario para el panel principal.
       // Los administradores gestionan las reservas de otros desde el calendario.
       let reservations = await getUserReservations(user.id);
-      
       reservations.sort((a, b) => new Date(a.date) - new Date(b.date));
       setUserReservations(reservations);
+      
+      if (user.communityId) {
+        const openRes = await getOpenReservations(user.communityId);
+        setOpenReservations(openRes.filter(r => !reservations.some(my => my.id === r.id)));
+      }
       
       if (user.isVerified && !user.hasPassword && !user.isAdmin) {
         setPwdModalOpen(true);
@@ -153,17 +168,50 @@ const Dashboard = ({ user, setUser }) => {
         </div>
       </div>
 
-      {/* Partidos Abiertos (Placeholder) */}
+      {/* Partidos Abiertos */}
       <div className="page-header-row" style={{ marginTop: '16px' }}>
         <h2 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--clr-text)' }}>
           Partidos abiertos
         </h2>
+        <Button variant="secondary" onClick={() => setJoinModalOpen(true)} style={{ fontSize: '0.85rem', padding: '6px 12px' }}>
+          <Key size={14} style={{ marginRight: '6px' }} /> Tengo un código
+        </Button>
       </div>
-      <div style={{ padding: '32px 24px', backgroundColor: 'var(--clr-bg-alt)', borderRadius: '12px', border: '2px dashed var(--clr-border)', textAlign: 'center', marginBottom: '32px' }}>
-        <div style={{ fontSize: '2rem', opacity: 0.5, marginBottom: '8px' }}>🏸</div>
-        <h4 style={{ margin: '0 0 4px 0', color: 'var(--clr-text)', fontSize: '1rem' }}>Próximamente</h4>
-        <p style={{ margin: 0, color: 'var(--clr-text-muted)', fontSize: '0.85rem' }}>Aquí aparecerán los partidos que buscan jugadores.</p>
-      </div>
+      
+      {openReservations.length > 0 ? (
+        <div className="reservations-grid" style={{ marginBottom: '32px' }}>
+          {openReservations.map((res, i) => {
+            const community = communities.find(c => c.id === res.communityId);
+            const court = community?.courts.find(c => c.id === res.courtId);
+            
+            return (
+              <Link 
+                to={`/reservation/${res.id}`}
+                key={`open-${i}`} 
+                className="reservation-card" 
+                style={{ textDecoration: 'none', color: 'inherit', display: 'block', transition: 'transform 0.2s', cursor: 'pointer', borderColor: '#22c55e' }}
+                onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                <div className="reservation-card-top">
+                  <div>
+                    <div className="reservation-court">{court?.name || 'Pista Eliminada'}</div>
+                    <div className="reservation-date">{formatDate(res.date)} a las {res.timeSlot}</div>
+                  </div>
+                  <span className="badge" style={{ backgroundColor: '#22c55e', color: 'white' }}>¡Únete!</span>
+                </div>
+                <div className="reservation-slot font-mono" style={{ fontSize: '0.85rem' }}>Creado por {res.userName}</div>
+              </Link>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{ padding: '32px 24px', backgroundColor: 'var(--clr-bg-alt)', borderRadius: '12px', border: '2px dashed var(--clr-border)', textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{ fontSize: '2rem', opacity: 0.5, marginBottom: '8px' }}>🏸</div>
+          <h4 style={{ margin: '0 0 4px 0', color: 'var(--clr-text)', fontSize: '1rem' }}>No hay partidos públicos ahora</h4>
+          <p style={{ margin: 0, color: 'var(--clr-text-muted)', fontSize: '0.85rem' }}>Si algún vecino busca jugadores, aparecerá aquí.</p>
+        </div>
+      )}
 
       {/* Reservations */}
       <div className="page-header-row">
@@ -192,8 +240,7 @@ const Dashboard = ({ user, setUser }) => {
               
               return (
                 <Link 
-                  to="/book" 
-                  state={{ date: res.date, courtId: res.courtId }} 
+                  to={`/reservation/${res.id}`}
                   key={`upc-${i}`} 
                   className="reservation-card" 
                   style={{ textDecoration: 'none', color: 'inherit', display: 'block', transition: 'transform 0.2s', cursor: 'pointer' }}
@@ -224,9 +271,11 @@ const Dashboard = ({ user, setUser }) => {
                   const court = community?.courts.find(c => c.id === res.courtId);
                   
                   return (
-                    <div
+                    <Link
+                      to={`/reservation/${res.id}`}
                       key={`past-${i}`} 
-                      className="reservation-card" 
+                      className="reservation-card"
+                      style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
                     >
                       <div className="reservation-card-top">
                         <div>
@@ -236,13 +285,52 @@ const Dashboard = ({ user, setUser }) => {
                         <span className="badge badge-gray">Jugado</span>
                       </div>
                       <div className="reservation-slot font-mono">{res.timeSlot}</div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
             </details>
           )}
         </>
+      )}
+
+      {joinModalOpen && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="modal-content">
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '8px', color: 'var(--clr-text)' }}>
+              Unirse con Código
+            </h2>
+            <p style={{ color: 'var(--clr-text-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>
+              Introduce el código de 6 caracteres que te ha proporcionado el organizador.
+            </p>
+            <Input 
+              label="Código de invitación" 
+              value={inviteCode} 
+              onChange={e => setInviteCode(e.target.value.toUpperCase())} 
+              placeholder="Ej: A1B2C3"
+              maxLength={6}
+            />
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <Button variant="ghost" onClick={() => { setJoinModalOpen(false); setInviteCode(''); }}>Cancelar</Button>
+              <Button onClick={async () => {
+                if (inviteCode.length < 6) return showAlert('El código debe tener 6 caracteres', 'error');
+                setJoining(true);
+                const res = await joinReservationByCode(inviteCode, user.id, user.name);
+                setJoining(false);
+                if (res.success) {
+                  showAlert('¡Te has unido al partido!', 'success');
+                  setJoinModalOpen(false);
+                  navigate(`/reservation/${res.reservationId}`);
+                } else {
+                  showAlert(res.error || 'Código inválido o partido lleno', 'error');
+                }
+              }} disabled={joining}>
+                {joining ? <Loader2 size={16} className="spin" /> : 'Unirme'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {pwdModalOpen && (

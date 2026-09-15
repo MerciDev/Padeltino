@@ -9,6 +9,7 @@ import Admin from './pages/Admin';
 import AdminCommunity from './pages/AdminCommunity';
 import AdminCourt from './pages/AdminCourt';
 import User from './pages/User';
+import ReservationDetail from './pages/ReservationDetail';
 import { AlertProvider } from './components/AlertContext';
 
 const APP_VERSION = 'v1.4.0';
@@ -40,6 +41,7 @@ function App() {
             <Route path="/dashboard" element={user ? <Dashboard user={user} setUser={setUser} /> : <Navigate to="/" />} />
             <Route path="/book" element={user ? <Booking user={user} /> : <Navigate to="/" />} />
             <Route path="/user" element={user ? <User user={user} onLogout={handleLogout} /> : <Navigate to="/" />} />
+            <Route path="/reservation/:id" element={user ? <ReservationDetail user={user} /> : <Navigate to="/" />} />
             
             <Route path="/admin" element={user?.isAdmin ? <Admin /> : <Navigate to={user ? '/dashboard' : '/'} />} />
             <Route path="/admin/community/:id" element={user?.isAdmin ? <AdminCommunity /> : <Navigate to={user ? '/dashboard' : '/'} />} />

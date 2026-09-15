@@ -113,3 +113,26 @@ CREATE POLICY "Avatars Public Access" ON storage.objects FOR SELECT USING (bucke
 CREATE POLICY "Avatars Anon Upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars');
 CREATE POLICY "Avatars Anon Update" ON storage.objects FOR UPDATE USING (bucket_id = 'avatars');
 CREATE POLICY "Avatars Anon Delete" ON storage.objects FOR DELETE USING (bucket_id = 'avatars');
+
+-- 9. Añadir columna is_open a las reservas para partidos abiertos
+ALTER TABLE reservations ADD COLUMN is_open boolean DEFAULT false;
+
+-- 10. Añadir invite_code a las reservas
+ALTER TABLE reservations ADD COLUMN invite_code text UNIQUE;
+
+-- 11. Crear tabla reservation_players para gestionar hasta 4 jugadores
+CREATE TABLE reservation_players (
+  id integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  reservation_id integer REFERENCES reservations(id) ON DELETE CASCADE,
+  player_name text NOT NULL,
+  user_id text REFERENCES users(id) ON DELETE CASCADE, -- opcional
+  household_member_id integer REFERENCES household_members(id) ON DELETE CASCADE, -- opcional
+  is_owner boolean DEFAULT false,
+  joined_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT unique_player_in_res UNIQUE (reservation_id, player_name)
+);
+
+-- Políticas para reservation_players
+ALTER TABLE reservation_players ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Permitir todas las operaciones en jugadores" ON reservation_players FOR ALL USING (true) WITH CHECK (true);
+
