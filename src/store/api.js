@@ -404,6 +404,128 @@ export const createCommunity = async (comm) => {
   return !error;
 };
 
+// --- Household Members ---
+export const getHouseholdMembers = async (userId) => {
+  const { data, error } = await supabase
+    .from('household_members')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+    
+  if (error) {
+    console.error('Error fetching household members:', error);
+    return [];
+  }
+  return data;
+};
+
+export const addHouseholdMember = async (userId, memberData) => {
+  if (memberData.is_representative) {
+    await supabase.from('household_members').update({ is_representative: false }).eq('user_id', userId);
+  }
+
+  const { data, error } = await supabase
+    .from('household_members')
+    .insert([{ 
+      user_id: userId, 
+      name: memberData.name,
+      email: memberData.email || null,
+      phone: memberData.phone || null,
+      age: memberData.age ? parseInt(memberData.age, 10) : null,
+      photo_url: memberData.photo_url || null,
+      is_representative: memberData.is_representative || false
+    }])
+    .select()
+    .single();
+    
+  if (error) {
+    console.error('Error adding household member:', error);
+    return null;
+  }
+  return data;
+};
+
+export const updateHouseholdMember = async (userId, id, memberData) => {
+  if (memberData.is_representative) {
+    await supabase.from('household_members').update({ is_representative: false }).eq('user_id', userId);
+  }
+
+  const { data, error } = await supabase
+    .from('household_members')
+    .update({ 
+      name: memberData.name,
+      email: memberData.email || null,
+      phone: memberData.phone || null,
+      age: memberData.age ? parseInt(memberData.age, 10) : null,
+      photo_url: memberData.photo_url || null,
+      is_representative: memberData.is_representative || false
+    })
+    .eq('id', id)
+    .select()
+    .single();
+    
+  if (error) {
+    console.error('Error updating household member:', error);
+    return null;
+  }
+  return data;
+};
+
+export const removeHouseholdMember = async (id, photoUrl = null) => {
+  // If there's a photo, delete it from storage first
+  if (photoUrl) {
+    await deleteAvatar(photoUrl);
+  }
+
+  const { error } = await supabase
+    .from('household_members')
+    .delete()
+    .eq('id', id);
+    
+  if (error) {
+    console.error('Error removing household member:', error);
+    return false;
+  }
+  return true;
+};
+
+// --- Storage ---
+export const uploadAvatar = async (file) => {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+  const filePath = `${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('avatars')
+    .upload(filePath, file);
+
+  if (uploadError) {
+    console.error('Error uploading avatar:', uploadError);
+    return null;
+  }
+
+  const { data } = supabase.storage
+    .from('avatars')
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
+};
+
+export const deleteAvatar = async (url) => {
+  if (!url) return;
+  try {
+    // Extract file path from public URL
+    const urlParts = url.split('/avatars/');
+    if (urlParts.length > 1) {
+      const filePath = urlParts[1].split('?')[0]; // Remove query params if any
+      const { error } = await supabase.storage.from('avatars').remove([filePath]);
+      if (error) console.error('Error deleting avatar from storage:', error);
+    }
+  } catch (error) {
+    console.error('Error in deleteAvatar:', error);
+  }
+};
+
 // --- Utils ---
 export const parseTime = (timeStr) => {
   const [h, m] = timeStr.split(':').map(Number);

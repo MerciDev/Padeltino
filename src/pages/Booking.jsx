@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getCommunities, getReservationsByDate, addReservation, removeReservation, getReservationsByMonthRange } from '../store/api';
+import PageLoader from '../components/PageLoader';
 import Button from '../components/Button';
 import UrbanizationModel from '../components/UrbanizationModel';
 import MonthCalendar from '../components/MonthCalendar';
@@ -78,6 +79,10 @@ const Booking = ({ user }) => {
 
   const userCommunity = communities.find(c => c.id === user.communityId) || communities[0];
   const courts = userCommunity?.courts || [];
+
+  if (loading) {
+    return <PageLoader message="Cargando reservas..." submessage="Sincronizando pistas y horarios" />;
+  }
 
   if (courts.length === 0) {
     return (

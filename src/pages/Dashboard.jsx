@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import { getUserReservations, getAllReservations, getCommunities, updateUserPassword, getUser } from '../store/api';
+import PageLoader from '../components/PageLoader';
 import { getLocalDateString } from '../utils/date';
 import { getLocalDeviceId } from '../utils/device';
 import { useAlert } from '../components/AlertContext';
@@ -101,7 +102,7 @@ const Dashboard = ({ user, setUser }) => {
   const totalCourts = userCommunity ? userCommunity.courts?.length || 0 : 0;
 
   if (loading) {
-    return <div className="page-container"><p style={{ color: 'var(--clr-text-muted)' }}>Cargando panel...</p></div>;
+    return <PageLoader message="Cargando panel..." submessage="Sincronizando información" />;
   }
 
   return (
@@ -150,6 +151,18 @@ const Dashboard = ({ user, setUser }) => {
           <span className="stat-value">{upcoming.length}</span>
           <span className="stat-sub">partidas confirmadas</span>
         </div>
+      </div>
+
+      {/* Partidos Abiertos (Placeholder) */}
+      <div className="page-header-row" style={{ marginTop: '16px' }}>
+        <h2 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--clr-text)' }}>
+          Partidos abiertos
+        </h2>
+      </div>
+      <div style={{ padding: '32px 24px', backgroundColor: 'var(--clr-bg-alt)', borderRadius: '12px', border: '2px dashed var(--clr-border)', textAlign: 'center', marginBottom: '32px' }}>
+        <div style={{ fontSize: '2rem', opacity: 0.5, marginBottom: '8px' }}>🏸</div>
+        <h4 style={{ margin: '0 0 4px 0', color: 'var(--clr-text)', fontSize: '1rem' }}>Próximamente</h4>
+        <p style={{ margin: 0, color: 'var(--clr-text-muted)', fontSize: '0.85rem' }}>Aquí aparecerán los partidos que buscan jugadores.</p>
       </div>
 
       {/* Reservations */}

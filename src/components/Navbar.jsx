@@ -38,24 +38,16 @@ const Navbar = ({ isAdmin, onLogout, user }) => {
             >
               Reservar Pista
             </Link>
-            {isAdmin && (
-              <Link
-                to="/admin"
-                className={`navbar-link${pathname === '/admin' ? ' active' : ''}`}
-                onClick={closeMenu}
-              >
-                Admin
-              </Link>
-            )}
+            <Link
+              to="/user"
+              className={`navbar-link${pathname === '/user' ? ' active' : ''}`}
+              onClick={closeMenu}
+            >
+              Mi Perfil
+            </Link>
           </div>
 
           <div className="navbar-actions">
-            {isAdmin && (
-              <span className="badge badge-green" style={{ marginRight: 8 }}>Admin</span>
-            )}
-            <Button variant="ghost" size="sm" onClick={() => { onLogout(); closeMenu(); }}>
-              Cerrar sesión
-            </Button>
           </div>
         </div>
       </div>

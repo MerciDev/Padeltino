@@ -82,3 +82,34 @@ UPDATE users SET is_verified = true;
 
 -- 6. Añadir columna de permisos para administradores secundarios
 ALTER TABLE users ADD COLUMN permissions jsonb DEFAULT '{}'::jsonb;
+
+-- 7. Tabla de Personas Asociadas a la Vivienda (Household Members)
+CREATE TABLE household_members (
+  id integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  user_id text REFERENCES users(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+-- Activar Row Level Security y crear política pública (al usar localStorage para la sesión)
+ALTER TABLE household_members ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Permitir todas las operaciones" ON household_members 
+FOR ALL USING (true) WITH CHECK (true);
+
+-- 7.1 Nuevas columnas para el perfil extendido de las personas asociadas
+ALTER TABLE household_members ADD COLUMN email text;
+ALTER TABLE household_members ADD COLUMN phone text;
+ALTER TABLE household_members ADD COLUMN age integer;
+ALTER TABLE household_members ADD COLUMN photo_url text;
+ALTER TABLE household_members ADD COLUMN is_representative boolean DEFAULT false;
+
+-- 8. Configuración de Storage para Avatares
+-- Nota: Si da error al ejecutar, crea el bucket 'avatars' manualmente desde el panel de Supabase y ponlo como público.
+INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true);
+
+-- Políticas de Storage para permitir operaciones anónimas
+CREATE POLICY "Avatars Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
+CREATE POLICY "Avatars Anon Upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars');
+CREATE POLICY "Avatars Anon Update" ON storage.objects FOR UPDATE USING (bucket_id = 'avatars');
+CREATE POLICY "Avatars Anon Delete" ON storage.objects FOR DELETE USING (bucket_id = 'avatars');
