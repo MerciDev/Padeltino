@@ -4,8 +4,8 @@
   "description": "App para reserva de pistas de pádel",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#2563eb",
+  "background_color": "#0a0f0d",
+  "theme_color": "#0a0f0d",
   "icons": [
     {
       "src": "/logo.svg",
